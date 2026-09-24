@@ -1,10 +1,13 @@
+import { timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { config } from './config.js';
 import { getProductSheet } from './connectors/icecat.js';
 import { createRegistry, type Registry } from './connectors/registry.js';
+import { ContractError, parseEnginePcRequest, toEnginePcResponse } from './enginepc.js';
 import { openApiSpec } from './openapi.js';
 import { ratesInfo, refreshRates } from './search/currency.js';
 import { SearchEngine } from './search/engine.js';
@@ -95,6 +98,35 @@ export function parseLookupRequest(body: unknown): LookupRequest {
   };
 }
 
+// CSP du front Vite : scripts et styles servis par l'app (le style inline reste autorisé
+// pour les attributs style de React), images marchandes externes en HTTPS.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: https:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
+
+function safeEqual(a: string, b: string): boolean {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+/** Clé d'API d'une requête : en-tête x-api-key ou Authorization: Bearer <clé>. */
+export function apiKeyFrom(headers: FastifyRequest['headers']): string | undefined {
+  const key = headers['x-api-key'];
+  if (typeof key === 'string' && key) return key;
+  const match = /^Bearer\s+(\S+)$/i.exec(headers.authorization ?? '');
+  return match?.[1];
+}
+
 export interface AppOptions {
   registry?: Registry;
   logger?: boolean;
@@ -109,13 +141,28 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     merchantNames: new Map(registry.merchants.map((m) => [m.id, m.name])),
   });
 
-  const app = Fastify({ logger: options.logger ?? false });
+  const app = Fastify({
+    logger: options.logger ?? false,
+    // Derrière nginx : seuls le proxy local et les réseaux privés (Docker) sont de confiance
+    // pour X-Forwarded-For, sinon n'importe qui pourrait choisir son IP et contourner le rate limit.
+    trustProxy: config.trustProxy,
+    bodyLimit: 256 * 1024,
+  });
+  await app.register(rateLimit, {
+    max: config.rateLimitPerMinute,
+    timeWindow: '1 minute',
+    allowList: (req) => !req.url.startsWith('/api/'),
+    errorResponseBuilder: (_req, ctx) => ({ statusCode: 429, error: `Trop de requêtes : réessayez dans ${Math.ceil(ctx.ttl / 1000)} s` }),
+  });
+  app.addHook('onSend', async (req, reply) => {
+    if (!req.url.startsWith('/api/')) reply.header('content-security-policy', CSP);
+  });
   await app.register(cors, {
     origin: !config.corsOrigins.length || config.corsOrigins.includes('*') ? true : config.corsOrigins,
   });
 
   app.setErrorHandler((error: Error & { statusCode?: number }, _req, reply) => {
-    if (error instanceof BadRequest) return reply.status(400).send({ error: error.message });
+    if (error instanceof BadRequest || error instanceof ContractError) return reply.status(400).send({ error: error.message });
     if (error.statusCode && error.statusCode < 500) return reply.status(error.statusCode).send({ error: error.message });
     app.log.error(error);
     return reply.status(500).send({ error: 'Erreur interne' });
@@ -124,9 +171,9 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   // Clé d'API optionnelle pour l'API publique /api/v1 (configurateur, partenaires).
   const requireKey = async (req: FastifyRequest, reply: FastifyReply) => {
     if (!config.apiKeys.length) return;
-    const key = req.headers['x-api-key'];
-    if (typeof key !== 'string' || !config.apiKeys.includes(key)) {
-      return reply.status(401).send({ error: 'Clé d’API manquante ou invalide (en-tête x-api-key)' });
+    const key = apiKeyFrom(req.headers);
+    if (!key || !config.apiKeys.some((k) => safeEqual(k, key))) {
+      return reply.status(401).send({ error: 'Clé d’API manquante ou invalide (en-tête x-api-key ou Authorization: Bearer)' });
     }
   };
 
@@ -147,6 +194,8 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     };
   });
 
+  // Lots jusqu'à 50 articles : limite plus stricte que le reste de l'API.
+  const heavy = { rateLimit: { max: Math.max(1, Math.ceil(config.rateLimitPerMinute / 4)), timeWindow: '1 minute' } };
   const searchHandler = async (req: FastifyRequest) => engine.search(parseSearchParams(req.query as Record<string, unknown>));
   const lookupHandler = async (req: FastifyRequest) => engine.lookup(parseLookupRequest(req.body));
 
@@ -164,13 +213,20 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   app.get('/api/v1/product-sheet', { preHandler: requireKey }, sheetHandler);
 
   app.get('/api/search', searchHandler);
-  app.post('/api/lookup', lookupHandler);
+  app.post('/api/lookup', { config: heavy }, lookupHandler);
 
   // API publique versionnée, pour le configurateur de PC et les intégrations.
   app.get('/api/v1/search', { preHandler: requireKey }, searchHandler);
-  app.post('/api/v1/lookup', { preHandler: requireKey }, lookupHandler);
+  app.post('/api/v1/lookup', { preHandler: requireKey, config: heavy }, lookupHandler);
   app.get('/api/v1/merchants', { preHandler: requireKey }, async () => ({ merchants: registry.merchantInfo() }));
   app.get('/api/v1/openapi.json', async () => openApiSpec);
+
+  // Contrat du configurateur EnginePC.
+  app.post('/api/v1/prices/lookup', { preHandler: requireKey, config: heavy }, async (req) =>
+    toEnginePcResponse(await engine.lookup(parseEnginePcRequest(req.body))),
+  );
+  // SearchIT ne tient pas de catalogue de caractéristiques : EnginePC garde le sien.
+  app.get('/api/v1/catalog', { preHandler: requireKey }, async () => ({ components: [], devices: [] }));
 
   // Taux de change BCE + préchargement des catalogues en arrière-plan.
   void refreshRates();

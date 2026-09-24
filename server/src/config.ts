@@ -24,10 +24,14 @@ export const config = {
   host: process.env.HOST ?? '0.0.0.0',
   /** Origines autorisées (CORS). Vide ou « * » = toutes, utile pour brancher le configurateur. */
   corsOrigins: list('CORS_ORIGINS'),
-  /** Clés d'API optionnelles exigées sur /api/v1/* (en-tête x-api-key). Vide = accès libre. */
+  /** Clés d'API optionnelles exigées sur /api/v1/* (x-api-key ou Authorization: Bearer). Vide = accès libre. */
   apiKeys: list('API_KEYS'),
   /** auto : démo active seulement si aucune source réelle n'est configurée. */
   demoMode: (['auto', 'on', 'off'].includes(process.env.DEMO_MODE ?? '') ? process.env.DEMO_MODE : 'auto') as DemoMode,
+  /** Proxys de confiance pour X-Forwarded-For : local + réseaux privés (Docker). */
+  trustProxy: list('TRUST_PROXY').length ? list('TRUST_PROXY') : ['127.0.0.1', '::1', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'],
+  /** Requêtes /api/* par minute et par IP (les lots /lookup ont le quart). */
+  rateLimitPerMinute: int('RATE_LIMIT_PER_MINUTE', 120),
   searchTimeoutMs: int('SEARCH_TIMEOUT_MS', 8000),
   cacheTtlSeconds: int('CACHE_TTL_SECONDS', 600),
   feedRefreshMinutes: int('FEED_REFRESH_MINUTES', 360),

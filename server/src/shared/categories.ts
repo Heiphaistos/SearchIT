@@ -57,6 +57,33 @@ export function isCategoryId(value: unknown): value is CategoryId {
   return typeof value === 'string' && byId.has(value as CategoryId);
 }
 
+// Catégories et types d'appareils du configurateur EnginePC → catégories SearchIT.
+// « storage » n'est pas mappé : SSD ou disque dur, la catégorie est détectée d'après le nom.
+const EXTERNAL_CATEGORIES = new Map<string, CategoryId>([
+  ['cooler', 'cooling'],
+  ['aio', 'cooling'],
+  ['phone', 'smartphone'],
+  ['mobile', 'smartphone'],
+  ['watch', 'smartwatch'],
+  ['mini-pc', 'desktop'],
+  ['pc', 'desktop'],
+  ['tower', 'desktop'],
+  ['workstation', 'desktop'],
+  ['notebook', 'laptop'],
+  ['memory', 'ram'],
+  ['power-supply', 'psu'],
+  ['display', 'monitor'],
+  ['router', 'network'],
+]);
+
+/** Catégorie SearchIT correspondant à une catégorie externe (EnginePC) ; `undefined` si inconnue. */
+export function fromExternalCategory(value: unknown): CategoryId | undefined {
+  if (typeof value !== 'string') return undefined;
+  const key = value.trim().toLowerCase();
+  if (isCategoryId(key) && key !== 'other') return key;
+  return EXTERNAL_CATEGORIES.get(key);
+}
+
 /** Catégories « appareil » : pour elles, les accessoires sont masqués par défaut. */
 export const DEVICE_CATEGORIES: ReadonlySet<CategoryId> = new Set<CategoryId>([
   'smartphone', 'tablet', 'laptop', 'desktop', 'smartwatch', 'console', 'server', 'nas',

@@ -39,17 +39,33 @@ export const openApiSpec = {
   openapi: '3.0.3',
   info: {
     title: 'SearchIT API',
-    version: '1.0.0',
+    version: '1.1.0',
     description:
       'Comparateur de prix high-tech multi-marchands (neuf, reconditionné, occasion). ' +
       "L'endpoint /lookup permet à un configurateur de PC d'obtenir en un appel le meilleur prix de chaque composant. " +
-      'Si le serveur définit API_KEYS, envoyer la clé dans l’en-tête x-api-key.',
+      "/prices/lookup implémente le contrat du configurateur EnginePC. " +
+      'Si le serveur définit API_KEYS, envoyer la clé dans l’en-tête x-api-key ou Authorization: Bearer <clé>. ' +
+      'Débit limité par IP (HTTP 429 au-delà).',
   },
   servers: [{ url: '/api/v1' }],
   components: {
-    securitySchemes: { apiKey: { type: 'apiKey', in: 'header', name: 'x-api-key' } },
+    securitySchemes: { apiKey: { type: 'apiKey', in: 'header', name: 'x-api-key' }, bearer: { type: 'http', scheme: 'bearer' } },
     schemas: {
       Offer,
+      EnginePcOffer: {
+        type: 'object',
+        required: ['merchant', 'price', 'currency', 'url', 'inStock'],
+        properties: {
+          merchant: { type: 'string', example: 'LDLC' },
+          price: { type: 'number', description: 'Prix TTC hors livraison' },
+          currency: { type: 'string', example: 'EUR', description: 'Toujours EUR (prix convertis au taux BCE)' },
+          url: { type: 'string', format: 'uri' },
+          inStock: { type: 'boolean', description: 'Faux seulement si le marchand annonce une rupture' },
+          shipping: { type: 'number', description: 'Absent si inconnu' },
+          updatedAt: { type: 'string', format: 'date-time' },
+          demo: { type: 'boolean', description: 'Prix fictif (catalogue de démonstration)' },
+        },
+      },
       LookupItem: {
         type: 'object',
         required: ['ref', 'query'],
@@ -80,7 +96,7 @@ export const openApiSpec = {
       },
     },
   },
-  security: [{ apiKey: [] }],
+  security: [{ apiKey: [] }, { bearer: [] }],
   paths: {
     '/search': {
       get: {
@@ -153,6 +169,80 @@ export const openApiSpec = {
             },
           },
         },
+      },
+    },
+    '/prices/lookup': {
+      post: {
+        summary: 'Contrat EnginePC : offres par composant (introuvables omis, occasion exclue)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['items'],
+                properties: {
+                  currency: { type: 'string', example: 'EUR', description: 'Indicatif : les prix sont renvoyés en EUR' },
+                  country: { type: 'string', example: 'FR', description: 'Indicatif : marchands français' },
+                  items: {
+                    type: 'array',
+                    maxItems: 50,
+                    items: {
+                      type: 'object',
+                      required: ['id'],
+                      properties: {
+                        id: { type: 'string', example: 'amd-ryzen-7-9800x3d' },
+                        name: { type: 'string', example: 'AMD Ryzen 7 9800X3D' },
+                        category: {
+                          type: 'string',
+                          description: 'Catégorie EnginePC (cpu, gpu, motherboard, ram, storage, psu, case, cooler, laptop, phone, tablet, nas, server, desktop…) ou SearchIT ; inconnue = ignorée',
+                        },
+                        ean: { type: 'string' },
+                        mpn: { type: 'string' },
+                      },
+                    },
+                  },
+                },
+              },
+              example: { currency: 'EUR', country: 'FR', items: [{ id: 'amd-ryzen-7-9800x3d', name: 'AMD Ryzen 7 9800X3D', category: 'cpu' }] },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'Offres par article, la meilleure (best) en premier',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    results: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string' },
+                          best: { $ref: '#/components/schemas/EnginePcOffer' },
+                          offers: { type: 'array', items: { $ref: '#/components/schemas/EnginePcOffer' } },
+                        },
+                      },
+                    },
+                    demo: { type: 'boolean' },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: 'Corps invalide ou plus de 50 articles' },
+          401: { description: 'Clé d’API manquante ou invalide' },
+          429: { description: 'Trop de requêtes' },
+        },
+      },
+    },
+    '/catalog': {
+      get: {
+        summary: 'Catalogue de caractéristiques : toujours vide, SearchIT ne compare que les prix',
+        responses: { 200: { description: '{ components: [], devices: [] }' } },
       },
     },
     '/merchants': { get: { summary: 'Marchands et état de leurs connecteurs', responses: { 200: { description: 'Liste des marchands' } } } },
