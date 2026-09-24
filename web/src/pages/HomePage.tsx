@@ -1,11 +1,12 @@
 import { CATEGORIES, CATEGORY_GROUPS } from '@shared/categories';
 import type { CategoryGroup, MerchantInfo } from '@shared/types';
-import { ArrowRight, BadgePercent, CodeXml, Recycle, Sparkles, Store, Tag } from 'lucide-react';
+import { ArrowRight, BadgePercent, Clock, CodeXml, Recycle, Sparkles, Store, Tag } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CategoryIcon } from '../components/CategoryIcon';
 import { SearchBar } from '../components/SearchBar';
 import { api } from '../lib/api';
+import { clearRecentSearches, recentStore } from '../lib/recent';
 
 const QUICK_SEARCHES = ['RTX 5070', 'iPhone 15 reconditionné', 'Ryzen 7 7800X3D', 'NAS Synology', 'SSD 2 To', 'MacBook Air M4', 'Pâte thermique', 'Serveur Dell PowerEdge', 'Chargeur GaN 65W', 'Disque dur NAS'];
 
@@ -19,6 +20,7 @@ const PILLARS = [
 
 export function HomePage() {
   const [merchants, setMerchants] = useState<MerchantInfo[]>([]);
+  const recent = recentStore.use();
 
   useEffect(() => {
     document.title = 'SearchIT – Comparateur de prix high-tech neuf et reconditionné';
@@ -46,6 +48,25 @@ export function HomePage() {
           <div className="mx-auto mt-8 max-w-2xl">
             <SearchBar size="lg" autoFocus />
           </div>
+          {recent.length > 0 && (
+            <div className="mx-auto mt-5 flex max-w-2xl flex-wrap items-center justify-center gap-2 text-sm">
+              <span className="inline-flex items-center gap-1 text-slate-500">
+                <Clock className="size-3.5" /> Récemment :
+              </span>
+              {recent.slice(0, 5).map((q) => (
+                <Link
+                  key={q}
+                  to={`/recherche?q=${encodeURIComponent(q)}`}
+                  className="rounded-full bg-brand-50 px-3 py-1 font-medium text-brand-700 transition hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
+                >
+                  {q}
+                </Link>
+              ))}
+              <button onClick={clearRecentSearches} className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                Effacer
+              </button>
+            </div>
+          )}
           <div className="mx-auto mt-5 flex max-w-2xl flex-wrap justify-center gap-2">
             {QUICK_SEARCHES.map((q) => (
               <Link

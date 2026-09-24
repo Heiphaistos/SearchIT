@@ -53,6 +53,28 @@ export class OfferIndex {
       .slice(0, limit);
   }
 
+  /** Titres distincts correspondant à une saisie partielle (le dernier mot est un préfixe). */
+  suggestTitles(prefix: string, limit: number): string[] {
+    const tokens = tokenize(prefix);
+    if (!tokens.length) return [];
+    const last = tokens[tokens.length - 1];
+    const full = tokens.slice(0, -1);
+    const lastSet = new Set<number>();
+    for (const [key, list] of this.tokens) if (key.startsWith(last)) for (const i of list) lastSet.add(i);
+    let result = lastSet;
+    for (const t of full) {
+      const s = this.postings(t);
+      result = new Set([...result].filter((i) => s.has(i)));
+    }
+    const titles = new Set<string>();
+    for (const i of result) {
+      titles.add(this.offers[i].title);
+      if (titles.size >= limit * 3) break;
+    }
+    // Les titres les plus courts sont les plus « génériques » : on les propose d'abord.
+    return [...titles].sort((a, b) => a.length - b.length).slice(0, limit);
+  }
+
   search(q: string, limit: number, gtin?: string): Offer[] {
     if (gtin) {
       const hits = this.gtins.get(gtin);

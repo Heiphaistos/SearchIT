@@ -35,6 +35,14 @@ export const config = {
   customMerchantsFile: path.resolve(SERVER_ROOT, process.env.CUSTOM_MERCHANTS_FILE ?? 'config/custom-merchants.json'),
   publicStoresFile: path.resolve(SERVER_ROOT, process.env.PUBLIC_STORES_FILE ?? 'config/public-stores.json'),
   webDist: path.resolve(SERVER_ROOT, '../web/dist'),
+  /** Adresse publique du site (sitemap, liens absolus). */
+  publicUrl: (process.env.PUBLIC_URL ?? 'https://searchit.heiphaistos.org').replace(/\/+$/, ''),
+  /** Historique des prix (« off » pour désactiver). */
+  historyFile: process.env.HISTORY_FILE === 'off' ? null : path.resolve(SERVER_ROOT, process.env.HISTORY_FILE ?? '.cache/history.json'),
+  /** Requêtes de recherche autorisées par minute et par adresse IP (0 = illimité). */
+  rateLimitPerMinute: Number.parseInt(process.env.RATE_LIMIT_PER_MINUTE ?? '', 10) >= 0 && process.env.RATE_LIMIT_PER_MINUTE ? Number.parseInt(process.env.RATE_LIMIT_PER_MINUTE, 10) : 60,
+  /** Derrière un reverse proxy (Caddy, nginx) : lire l'IP réelle dans X-Forwarded-For. */
+  trustProxy: process.env.TRUST_PROXY !== 'false',
 };
 
 export function env(name: string): string | undefined {

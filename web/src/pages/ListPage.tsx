@@ -1,12 +1,12 @@
 import type { Condition, LookupResponse } from '@shared/types';
-import { ExternalLink, ListChecks, Minus, Plus, RefreshCw, Store, Trash2 } from 'lucide-react';
+import { Check, Download, ExternalLink, Link2, ListChecks, Minus, Plus, RefreshCw, Store, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { CategoryIcon } from '../components/CategoryIcon';
 import { ConditionBadge, DemoBanner, EmptyState, ErrorBox } from '../components/ui';
 import { api } from '../lib/api';
 import { formatPrice, plural } from '../lib/format';
-import { clearList, listStore, removeListItem, updateListItem } from '../lib/list';
+import { clearList, decodeShared, importItems, listStore, removeListItem, shareUrl, updateListItem, type ListItem } from '../lib/list';
 
 const CONDITION_CHOICES: Array<{ id: string; label: string; value: Condition[] }> = [
   { id: 'new-refurb', label: 'Neuf ou reconditionné', value: ['new', 'refurbished'] },
@@ -15,8 +15,67 @@ const CONDITION_CHOICES: Array<{ id: string; label: string; value: Condition[] }
   { id: 'all', label: 'Tout, occasion comprise', value: ['new', 'refurbished', 'used'] },
 ];
 
+function exportCsv(items: ListItem[], result: LookupResponse | null) {
+  const byRef = new Map(result?.results.map((r) => [r.ref, r]));
+  // Les titres viennent des marchands : on neutralise les formules (« =… ») à l'ouverture dans Excel.
+  const cell = (v: unknown) => {
+    const text = String(v ?? '');
+    return `"${(/^[=+\-@\t\r]/.test(text) ? `'${text}` : text).replace(/"/g, '""')}"`;
+  };
+  const num = (n: number | undefined | null) => (n === undefined || n === null ? '' : n.toFixed(2).replace('.', ','));
+  const rows = [
+    ['Produit', 'Quantité', 'Marchand', 'État', 'Prix unitaire (€)', 'Livraison (€)', 'Total ligne (€)', 'Lien'],
+    ...items.map((i) => {
+      const r = byRef.get(i.ref);
+      return [i.title, i.quantity, r?.best?.merchantName, r?.best?.condition, num(r?.best?.price), num(r?.best?.shipping), num(r?.found ? r.lineTotal : null), r?.best?.url];
+    }),
+    ['Total', '', '', '', '', '', num(result?.bestTotal), ''],
+  ];
+  // Point-virgule + BOM : ouverture directe dans Excel en français.
+  const csv = '\uFEFF' + rows.map((r) => r.map(cell).join(';')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: `searchit-liste-${new Date().toISOString().slice(0, 10)}.csv` });
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function ImportBanner() {
+  const [qs, setQs] = useSearchParams();
+  const data = qs.get('import');
+  const shared = data ? decodeShared(data) : null;
+  if (!data) return null;
+  const done = (mode?: 'replace' | 'merge') => {
+    if (mode && shared) importItems(shared, mode);
+    qs.delete('import');
+    setQs(qs, { replace: true });
+  };
+  return (
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm dark:border-brand-500/30 dark:bg-brand-500/10">
+      {shared ? (
+        <>
+          <p>
+            On vous a partagé une liste de <strong>{plural(shared.length, 'produit')}</strong> : {shared.slice(0, 3).map((i) => i.title).join(', ')}
+            {shared.length > 3 ? '…' : ''}
+          </p>
+          <div className="flex gap-2">
+            <button className="btn-primary" onClick={() => done('replace')}>Remplacer ma liste</button>
+            <button className="btn-outline" onClick={() => done('merge')}>Ajouter</button>
+            <button className="btn-ghost" onClick={() => done()}>Ignorer</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p>Ce lien de partage est invalide.</p>
+          <button className="btn-ghost" onClick={() => done()}>Fermer</button>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function ListPage() {
   const items = listStore.use();
+  const [copied, setCopied] = useState(false);
   const [choice, setChoice] = useState(CONDITION_CHOICES[0].id);
   const [result, setResult] = useState<LookupResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -36,7 +95,14 @@ export function ListPage() {
       const conditions = CONDITION_CHOICES.find((c) => c.id === choice)!.value;
       setResult(
         await api.lookup({
-          items: current.map((i) => ({ ref: i.ref, query: i.query, category: i.category, gtin: i.gtin, quantity: i.quantity })),
+          items: current.map((i) => ({
+            ref: i.ref,
+            query: i.query,
+            // « other » n'est pas un filtre utile : on laisse le serveur détecter la catégorie.
+            category: i.category === 'other' ? undefined : i.category,
+            gtin: i.gtin,
+            quantity: i.quantity,
+          })),
           conditions,
           alternatives: 5,
         }),
@@ -56,6 +122,7 @@ export function ListPage() {
   if (!items.length) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16">
+        <ImportBanner />
         <EmptyState icon={<ListChecks className="size-6" />} title="Votre liste est vide">
           Ajoutez des produits depuis les résultats de recherche (bouton « Liste ») pour calculer le meilleur prix total, par exemple pour tous les composants d’un PC.
           <div className="mt-5">
@@ -87,6 +154,21 @@ export function ListPage() {
               </option>
             ))}
           </select>
+          <button
+            onClick={() => {
+              void navigator.clipboard?.writeText(shareUrl(items)).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              });
+            }}
+            className="btn-outline"
+            title="Copier un lien qui recrée cette liste"
+          >
+            {copied ? <Check className="size-4 text-emerald-600" /> : <Link2 className="size-4" />} {copied ? 'Lien copié' : 'Partager'}
+          </button>
+          <button onClick={() => exportCsv(items, result)} className="btn-outline" title="Exporter en CSV (Excel)">
+            <Download className="size-4" /> CSV
+          </button>
           <button onClick={() => void compute()} disabled={loading} className="btn-outline">
             <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} /> Actualiser
           </button>
@@ -101,6 +183,7 @@ export function ListPage() {
         </div>
       </div>
 
+      <ImportBanner />
       {result?.demo && (
         <div className="mb-5">
           <DemoBanner />

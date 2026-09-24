@@ -101,6 +101,31 @@ export interface Offer {
   updatedAt: string;
 }
 
+export interface PricePoint {
+  /** Jour (AAAA-MM-JJ). */
+  d: string;
+  /** Meilleur prix total du jour, tous états confondus. */
+  min: number;
+  new?: number;
+  refurb?: number;
+}
+
+export interface PriceHistory {
+  /** Prix le plus bas jamais relevé et sa date. */
+  lowest: number;
+  lowestDate: string;
+  /** Premier jour de suivi et nombre de jours couverts. */
+  since: string;
+  days: number;
+  /** Derniers points (90 jours max) pour le mini-graphique. */
+  points: PricePoint[];
+}
+
+export interface UnitPrice {
+  value: number;
+  unit: '€/To' | '€/Go';
+}
+
 export interface ProductGroup {
   key: string;
   title: string;
@@ -119,9 +144,13 @@ export interface ProductGroup {
   savingsPercent: number;
   merchantCount: number;
   relevance: number;
+  /** Historique des prix relevés par SearchIT (absent pour un produit jamais vu). */
+  history?: PriceHistory;
+  /** Prix au To (stockage) ou au Go (mémoire), calculé sur la meilleure offre. */
+  unitPrice?: UnitPrice;
 }
 
-export type SortKey = 'relevance' | 'price-asc' | 'price-desc' | 'savings' | 'offers';
+export type SortKey = 'relevance' | 'price-asc' | 'price-desc' | 'savings' | 'offers' | 'unit-price';
 
 export interface SearchParams {
   /** Mots-clés. Peut être vide si `category` est fourni (navigation par catégorie). */
@@ -170,6 +199,11 @@ export interface SearchResponse {
   sources: SourceStatus[];
   demo: boolean;
   tookMs: number;
+}
+
+export interface SuggestResponse {
+  queries: string[];
+  categories: Array<{ id: CategoryId; label: string }>;
 }
 
 // ---- API « lookup » par lot, pensée pour le configurateur de PC ----

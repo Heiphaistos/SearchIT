@@ -94,7 +94,7 @@ export const openApiSpec = {
           { name: 'maxPrice', in: 'query', schema: { type: 'number' } },
           { name: 'inStock', in: 'query', schema: { type: 'boolean' } },
           { name: 'hideAccessories', in: 'query', schema: { type: 'boolean', default: true } },
-          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['relevance', 'price-asc', 'price-desc', 'savings', 'offers'] } },
+          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['relevance', 'price-asc', 'price-desc', 'savings', 'offers', 'unit-price'] } },
           { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
           { name: 'pageSize', in: 'query', schema: { type: 'integer', default: 24, maximum: 100 } },
         ],
@@ -153,6 +153,17 @@ export const openApiSpec = {
             },
           },
         },
+      },
+    },
+    '/product-sheet': {
+      get: {
+        summary: 'Fiche technique (Open Icecat) par EAN ou marque + référence fabricant',
+        parameters: [
+          { name: 'gtin', in: 'query', schema: { type: 'string' } },
+          { name: 'brand', in: 'query', schema: { type: 'string' } },
+          { name: 'mpn', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { 200: { description: 'Fiche (found=false si inconnue)' } },
       },
     },
     '/merchants': { get: { summary: 'Marchands et état de leurs connecteurs', responses: { 200: { description: 'Liste des marchands' } } } },

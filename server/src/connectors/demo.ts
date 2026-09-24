@@ -110,6 +110,7 @@ export function createDemoConnector(isEnabled: () => boolean): Connector {
     merchantId: 'demo',
     enabled: isEnabled,
     describe: () => ({ offers: getIndex().size, products: DEMO_CATALOG.length }),
+    suggest: (prefix, limit) => getIndex().suggestTitles(prefix, limit),
     async search(query: ConnectorQuery): Promise<Offer[]> {
       if (query.browse && query.category) return getIndex().byCategory(query.category, query.limit * 8);
       return getIndex().search(query.q, query.limit * 4);

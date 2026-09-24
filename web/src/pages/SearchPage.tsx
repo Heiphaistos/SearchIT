@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Filters } from '../components/Filters';
 import { ProductCard } from '../components/ProductCard';
-import { DemoBanner, EmptyState, ErrorBox, Spinner } from '../components/ui';
+import { DemoBanner, EmptyState, ErrorBox } from '../components/ui';
 import { api, searchParamsToQuery } from '../lib/api';
 import { plural } from '../lib/format';
 
@@ -15,7 +15,33 @@ const SORTS: Array<{ id: SortKey; label: string }> = [
   { id: 'price-desc', label: 'Prix décroissant' },
   { id: 'savings', label: 'Plus gros écarts de prix' },
   { id: 'offers', label: 'Nombre d’offres' },
+  { id: 'unit-price', label: 'Prix au To / au Go' },
 ];
+
+function ResultSkeleton() {
+  return (
+    <div className="space-y-4" role="status" aria-label="Interrogation des marchands…">
+      {Array.from({ length: 4 }, (_, i) => (
+        <div key={i} className="card flex animate-pulse gap-4 p-5">
+          <div className="size-24 shrink-0 rounded-xl bg-slate-200 dark:bg-slate-800 sm:size-28" />
+          <div className="flex-1 space-y-3 py-1">
+            <div className="h-3 w-24 rounded bg-slate-200 dark:bg-slate-800" />
+            <div className="h-4 w-3/4 rounded bg-slate-200 dark:bg-slate-800" />
+            <div className="flex gap-2">
+              <div className="h-5 w-28 rounded-full bg-slate-200 dark:bg-slate-800" />
+              <div className="h-5 w-36 rounded-full bg-slate-200 dark:bg-slate-800" />
+            </div>
+          </div>
+          <div className="hidden w-40 space-y-2 py-1 sm:block">
+            <div className="ml-auto h-3 w-20 rounded bg-slate-200 dark:bg-slate-800" />
+            <div className="ml-auto h-7 w-28 rounded bg-slate-200 dark:bg-slate-800" />
+          </div>
+        </div>
+      ))}
+      <p className="text-center text-sm text-slate-500">Interrogation des marchands…</p>
+    </div>
+  );
+}
 
 function readParams(qs: URLSearchParams): SearchParams {
   const list = (key: string) => qs.get(key)?.split(',').filter(Boolean);
@@ -78,6 +104,8 @@ export function SearchPage() {
     );
   }
 
+  // Le tri au To / au Go n'a de sens que pour le stockage et la mémoire.
+  const showUnitSort = Boolean(data?.groups.some((g) => g.unitPrice));
   const failed = data?.sources.filter((s) => s.status !== 'ok') ?? [];
   const totalPages = data ? Math.ceil(data.total / data.pageSize) : 0;
   const activeFilters = [
@@ -131,7 +159,7 @@ export function SearchPage() {
             Trier par
           </label>
           <select id="sort" value={params.sort} onChange={(e) => update({ sort: e.target.value as SortKey })} className="input w-auto cursor-pointer pr-8">
-            {SORTS.map((s) => (
+            {SORTS.filter((s) => s.id !== 'unit-price' || showUnitSort || params.sort === 'unit-price').map((s) => (
               <option key={s.id} value={s.id}>
                 {s.label}
               </option>
@@ -164,7 +192,7 @@ export function SearchPage() {
             />
           )}
           {error && <ErrorBox message={error} />}
-          {loading && !data && <Spinner label="Interrogation des marchands…" />}
+          {loading && !data && <ResultSkeleton />}
           <div className={`space-y-4 transition ${loading && data ? 'opacity-50' : ''}`}>
             {data?.groups.map((g) => <ProductCard key={g.key} group={g} />)}
           </div>

@@ -1,5 +1,5 @@
 import type { Connector, ConnectorQuery } from '../connectors/types.js';
-import { ACCESSORY_CATEGORIES, DEVICE_CATEGORIES, getCategory } from '../shared/categories.js';
+import { ACCESSORY_CATEGORIES, CATEGORIES, DEVICE_CATEGORIES, getCategory } from '../shared/categories.js';
 import type {
   CategoryId,
   Condition,
@@ -14,12 +14,15 @@ import type {
   SearchParams,
   SearchResponse,
   SourceStatus,
+  SuggestResponse,
 } from '../shared/types.js';
 import { TtlCache } from './cache.js';
-import { groupOffers, type ScoredOffer } from './group.js';
+import { cleanTitle, groupOffers, type ScoredOffer } from './group.js';
 import { detectCategory, normalizeGtin, normalizeText } from './normalize.js';
 import { refreshRates, toEur } from './currency.js';
+import type { HistoryStore } from './history.js';
 import { round2 } from './offer.js';
+import { unitPriceFor } from './unit-price.js';
 import { MIN_RELEVANCE, extractConditionIntent, prepareQuery, relevance } from './relevance.js';
 
 const DEFAULT_LOOKUP_CONDITIONS: Condition[] = ['new', 'refurbished'];
@@ -30,6 +33,8 @@ export interface EngineOptions {
   timeoutMs: number;
   cacheTtlMs: number;
   merchantNames: Map<string, string>;
+  /** Historique des prix / recherches populaires (facultatif). */
+  history?: HistoryStore;
 }
 
 interface FetchResult {
@@ -105,7 +110,7 @@ export class SearchEngine {
     return { offers: [...seen.values()], sources };
   }
 
-  async search(params: SearchParams): Promise<SearchResponse> {
+  async search(params: SearchParams, opts: { track?: boolean } = {}): Promise<SearchResponse> {
     const started = Date.now();
     // Sans mots-clés mais avec une catégorie : navigation dans la catégorie.
     const browse = !params.q.trim() && Boolean(params.category);
@@ -154,7 +159,18 @@ export class SearchEngine {
       return true;
     });
 
-    const groups = sortGroups(groupOffers(filtered), params.sort ?? 'relevance');
+    const grouped = groupOffers(filtered);
+    const history = this.options.history;
+    if (history) {
+      // Les recherches ciblées enrichissent l'historique ; la navigation par catégorie aussi.
+      history.record(grouped);
+      if (!browse && grouped.length && opts.track !== false) history.recordQuery(params.q);
+    }
+    for (const g of grouped) {
+      g.unitPrice = unitPriceFor(g.category, g.title, g.bestOffer.totalPrice);
+      g.history = history?.summary(g.key);
+    }
+    const groups = sortGroups(grouped, params.sort ?? 'relevance');
     return {
       query: params.q,
       detectedCategory,
@@ -167,6 +183,27 @@ export class SearchEngine {
       demo: this.isDemo(),
       tookMs: Date.now() - started,
     };
+  }
+
+  /** Autocomplétion : recherches populaires, titres de produits connus et catégories. */
+  suggest(prefix: string, limit = 8): SuggestResponse {
+    const p = normalizeText(prefix);
+    const categories = p.length < 2 ? [] : CATEGORIES.filter(
+      (c) => c.id !== 'other' && (normalizeText(c.label).startsWith(p) || c.keywords.some((k) => k.startsWith(p))),
+    ).slice(0, 3).map((c) => ({ id: c.id, label: c.label }));
+    const seen = new Set<string>();
+    const queries: string[] = [];
+    const add = (q: string) => {
+      const key = normalizeText(q);
+      if (!key || seen.has(key) || queries.length >= limit) return;
+      seen.add(key);
+      queries.push(q);
+    };
+    for (const q of this.options.history?.popularQueries(prefix, limit) ?? []) add(q);
+    if (p.length >= 2) {
+      for (const c of this.activeConnectors()) for (const t of c.suggest?.(prefix, limit) ?? []) add(cleanTitle(t));
+    }
+    return { queries, categories };
   }
 
   /** Recherche du meilleur prix pour une liste de composants (API du configurateur). */
@@ -231,7 +268,7 @@ export class SearchEngine {
       inStockOnly: true,
       sort: 'relevance',
       pageSize: 10,
-    });
+    }, { track: false });
     const byRelevance = [...response.groups].sort((a, b) => b.relevance - a.relevance || a.bestOffer.totalPrice - b.bestOffer.totalPrice);
     const group = (gtin && response.groups.find((g) => g.gtin === gtin)) || byRelevance[0];
     if (!group) {
@@ -274,6 +311,9 @@ function sortGroups(groups: ProductGroup[], sort: NonNullable<SearchParams['sort
       return groups.sort((a, b) => b.savingsPercent - a.savingsPercent || byPrice(a, b));
     case 'offers':
       return groups.sort((a, b) => b.offers.length - a.offers.length || byPrice(a, b));
+    case 'unit-price':
+      // Produits sans prix unitaire (capacité inconnue) en fin de liste.
+      return groups.sort((a, b) => (a.unitPrice?.value ?? Infinity) - (b.unitPrice?.value ?? Infinity) || byPrice(a, b));
     default:
       // Pertinence d'abord ; à pertinence quasi égale, les produits les plus proposés puis les moins chers.
       return groups.sort((a, b) => {

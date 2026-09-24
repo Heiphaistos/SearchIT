@@ -1,4 +1,7 @@
 import fs from 'node:fs';
+import path from 'node:path';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
@@ -8,11 +11,12 @@ import { createRegistry, type Registry } from './connectors/registry.js';
 import { openApiSpec } from './openapi.js';
 import { ratesInfo, refreshRates } from './search/currency.js';
 import { SearchEngine } from './search/engine.js';
+import { HistoryStore } from './search/history.js';
 import { CATEGORIES, CATEGORY_GROUPS, isCategoryId } from './shared/categories.js';
 import type { Condition, LookupItem, LookupRequest, SearchParams, SortKey } from './shared/types.js';
 
 const CONDITIONS: Condition[] = ['new', 'refurbished', 'used'];
-const SORTS: SortKey[] = ['relevance', 'price-asc', 'price-desc', 'savings', 'offers'];
+const SORTS: SortKey[] = ['relevance', 'price-asc', 'price-desc', 'savings', 'offers', 'unit-price'];
 
 class BadRequest extends Error {}
 
@@ -97,19 +101,61 @@ export function parseLookupRequest(body: unknown): LookupRequest {
 
 export interface AppOptions {
   registry?: Registry;
+  /** Fichier d'historique ; `null` pour un historique en mémoire (tests). */
+  historyFile?: string | null;
   logger?: boolean;
   serveWeb?: boolean;
 }
 
 export async function buildApp(options: AppOptions = {}): Promise<FastifyInstance> {
   const registry = options.registry ?? createRegistry();
+  const history = new HistoryStore(options.historyFile === undefined ? config.historyFile : options.historyFile);
   const engine = new SearchEngine(registry.connectors, {
+    history,
     timeoutMs: config.searchTimeoutMs,
     cacheTtlMs: config.cacheTtlSeconds * 1000,
     merchantNames: new Map(registry.merchants.map((m) => [m.id, m.name])),
   });
 
-  const app = Fastify({ logger: options.logger ?? false });
+  const app = Fastify({ logger: options.logger ?? false, trustProxy: config.trustProxy });
+
+  // En-têtes de sécurité. Les images viennent des marchands : img-src ouvert.
+  await app.register(helmet, {
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ['*', 'data:'],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'", 'data:'],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+        manifestSrc: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  });
+
+  // Limite de débit par IP sur les routes qui interrogent les marchands (protège aussi
+  // les crédits gratuits Google Shopping contre les robots). Les clés d'API en sont exemptées.
+  await app.register(rateLimit, {
+    global: false,
+    allowList: (req) => config.apiKeys.length > 0 && config.apiKeys.includes(String(req.headers['x-api-key'] ?? '')),
+    errorResponseBuilder: (_req, ctx) => ({
+      statusCode: 429,
+      error: `Trop de requêtes : réessayez dans ${Math.ceil(ctx.ttl / 1000)} s.`,
+    }),
+  });
+  const limited = (perMinute: number) =>
+    config.rateLimitPerMinute > 0 ? { config: { rateLimit: { max: Math.max(1, Math.round(perMinute)), timeWindow: '1 minute' } } } : {};
+
+  app.addHook('onClose', async () => history.flush());
+
   await app.register(cors, {
     origin: !config.corsOrigins.length || config.corsOrigins.includes('*') ? true : config.corsOrigins,
   });
@@ -160,15 +206,33 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
       return { found: false, source: 'Icecat' };
     }
   };
-  app.get('/api/product-sheet', sheetHandler);
-  app.get('/api/v1/product-sheet', { preHandler: requireKey }, sheetHandler);
+  const rl = config.rateLimitPerMinute;
+  app.get('/api/product-sheet', limited(rl), sheetHandler);
+  app.get('/api/v1/product-sheet', { preHandler: requireKey, ...limited(rl) }, sheetHandler);
 
-  app.get('/api/search', searchHandler);
-  app.post('/api/lookup', lookupHandler);
+  app.get('/api/search', limited(rl), searchHandler);
+  app.post('/api/lookup', limited(rl / 3), lookupHandler);
+
+  app.get('/api/suggest', limited(rl * 4), async (req) => {
+    const q = String((req.query as Record<string, unknown>).q ?? '').slice(0, 80);
+    return engine.suggest(q);
+  });
+
+  // Suggestions au format OpenSearch (barre d'adresse du navigateur).
+  app.get('/api/opensearch-suggest', limited(rl * 4), async (req, reply) => {
+    const q = String((req.query as Record<string, unknown>).q ?? '').slice(0, 80);
+    reply.type('application/x-suggestions+json');
+    return [q, engine.suggest(q).queries];
+  });
+
+  app.get('/api/history/:key', async (req) => {
+    const { key } = req.params as { key: string };
+    return { key, points: history.points(key), summary: history.summary(key) ?? null };
+  });
 
   // API publique versionnée, pour le configurateur de PC et les intégrations.
-  app.get('/api/v1/search', { preHandler: requireKey }, searchHandler);
-  app.post('/api/v1/lookup', { preHandler: requireKey }, lookupHandler);
+  app.get('/api/v1/search', { preHandler: requireKey, ...limited(rl) }, searchHandler);
+  app.post('/api/v1/lookup', { preHandler: requireKey, ...limited(rl / 3) }, lookupHandler);
   app.get('/api/v1/merchants', { preHandler: requireKey }, async () => ({ merchants: registry.merchantInfo() }));
   app.get('/api/v1/openapi.json', async () => openApiSpec);
 
@@ -177,11 +241,38 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   // Précharge les flux en arrière-plan pour que la première recherche soit rapide.
   for (const c of registry.connectors) if (c.enabled() && c.warmup) void c.warmup().catch(() => undefined);
 
+  // Référencement : robots.txt et plan du site (pages, catégories, recherches populaires).
+  app.get('/robots.txt', async (_req, reply) => {
+    reply.type('text/plain; charset=utf-8');
+    return `User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: ${config.publicUrl}/sitemap.xml\n`;
+  });
+  app.get('/sitemap.xml', async (_req, reply) => {
+    const urls = [
+      '/',
+      '/sources',
+      '/developpeurs',
+      ...CATEGORIES.filter((c) => c.id !== 'other').map((c) => `/recherche?category=${c.id}`),
+      ...history.popularQueries('', 200).map((q) => `/recherche?q=${encodeURIComponent(q)}`),
+    ];
+    const esc = (u: string) => u.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    reply.type('application/xml; charset=utf-8').header('cache-control', 'public, max-age=3600');
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls
+      .map((u) => `  <url><loc>${esc(config.publicUrl + u)}</loc></url>`)
+      .join('\n')}\n</urlset>\n`;
+  });
+
   if (options.serveWeb !== false && fs.existsSync(config.webDist)) {
-    await app.register(fastifyStatic, { root: config.webDist, wildcard: false });
+    await app.register(fastifyStatic, {
+      root: config.webDist,
+      wildcard: false,
+      // Fichiers versionnés par Vite : cache long ; le reste (index.html…) toujours revalidé.
+      setHeaders: (res, filePath) => {
+        res.header('cache-control', filePath.includes(`${path.sep}assets${path.sep}`) ? 'public, max-age=31536000, immutable' : 'no-cache');
+      },
+    });
     app.setNotFoundHandler((req, reply) => {
       if (req.url.startsWith('/api/')) return reply.status(404).send({ error: 'Route inconnue' });
-      return reply.sendFile('index.html');
+      return reply.header('cache-control', 'no-cache').sendFile('index.html');
     });
   }
 

@@ -1,0 +1,22 @@
+{
+  "name": "SearchIT – Comparateur high-tech",
+  "short_name": "SearchIT",
+  "description": "Le meilleur prix du high-tech neuf, reconditionné et d'occasion.",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#4f46e5",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    { "name": "Ma liste", "url": "/liste" },
+    { "name": "Cartes graphiques", "url": "/recherche?category=gpu" },
+    { "name": "Smartphones reconditionnés", "url": "/recherche?category=smartphone&conditions=refurbished" }
+  ]
+}

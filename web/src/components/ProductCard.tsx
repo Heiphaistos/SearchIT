@@ -5,6 +5,7 @@ import { useState, type ReactNode } from 'react';
 import { CONDITION_META, formatPrice, formatShipping, plural } from '../lib/format';
 import { addGroupToList, listStore } from '../lib/list';
 import { CategoryIcon } from './CategoryIcon';
+import { PriceHistoryBadge } from './PriceHistory';
 import { ProductSheetPanel } from './ProductSheet';
 import { ConditionBadge } from './ui';
 
@@ -159,6 +160,11 @@ export function ProductCard({ group }: { group: ProductGroup }) {
           <div className="mt-2.5">
             <BestByCondition group={group} />
           </div>
+          {group.history && !best.isDemo && (
+            <div className="mt-2">
+              <PriceHistoryBadge history={group.history} current={best.totalPrice} />
+            </div>
+          )}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
             <span>
               {plural(group.offers.length, 'offre')} chez {plural(group.merchantCount, 'marchand')}
@@ -177,6 +183,11 @@ export function ProductCard({ group }: { group: ProductGroup }) {
               Meilleur prix{best.isDemo && <span className="ml-1 font-medium text-amber-600 dark:text-amber-400">· fictif (démo)</span>}
             </div>
             <div className="text-2xl font-bold tabular-nums tracking-tight">{formatPrice(best.totalPrice, best.currency)}</div>
+            {group.unitPrice && (
+              <div className="text-xs font-medium text-brand-600 dark:text-brand-400" title="Calculé sur la capacité indiquée dans le titre">
+                soit {formatPrice(group.unitPrice.value)}{group.unitPrice.unit.slice(1)}
+              </div>
+            )}
             <div className="text-xs text-slate-500 dark:text-slate-400">
               chez <span className="font-medium text-slate-700 dark:text-slate-200">{best.merchantName}</span> · {CONDITION_META[best.condition].label.toLowerCase()}
             </div>

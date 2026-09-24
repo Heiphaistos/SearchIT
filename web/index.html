@@ -2,18 +2,23 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>SearchIT – Comparateur de prix high-tech neuf et reconditionné</title>
+    <meta name="description" content="SearchIT compare les prix du high-tech neuf, reconditionné et d'occasion chez Amazon, Fnac, LDLC, Back Market, Leclerc, Boulanger et des centaines d'autres marchands." />
+    <meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#020617" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="SearchIT compare les prix du high-tech neuf, reconditionné et d'occasion chez Amazon, Fnac, LDLC, Back Market, Leclerc, AliExpress et bien d'autres." />
-    <meta name="theme-color" content="#4f46e5" />
-    <title>SearchIT</title>
-    <script>
-      // Applique le thème avant le premier rendu (évite le flash clair/sombre).
-      try {
-        var t = localStorage.getItem('searchit:theme');
-        if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark');
-      } catch (e) {}
-    </script>
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="search" type="application/opensearchdescription+xml" title="SearchIT" href="/opensearch.xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SearchIT" />
+    <meta property="og:title" content="SearchIT – Le meilleur prix du high-tech, partout" />
+    <meta property="og:description" content="Composants PC, smartphones, serveurs, NAS, accessoires : neuf, reconditionné et occasion comparés en temps réel." />
+    <meta property="og:image" content="https://searchit.heiphaistos.org/og-image.png" />
+    <meta property="og:url" content="https://searchit.heiphaistos.org/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script src="/theme.js"></script>
   </head>
   <body>
     <div id="root"></div>
