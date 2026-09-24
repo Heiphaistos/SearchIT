@@ -196,7 +196,7 @@ describe('GET /api/catalog', () => {
     expect(item.similar.length).toBeGreaterThan(0);
     expect((await app.inject({ url: '/api/catalog/inconnu' })).statusCode).toBe(404);
     expect((await app.inject({ url: '/api/catalog?category=frigo' })).statusCode).toBe(400);
-    const search = (await app.inject({ url: '/api/search?q=rtx%205070' })).json<SearchResponse>();
+    const search = (await app.inject({ url: '/api/search?q=rtx%205070&pageSize=100' })).json<SearchResponse>();
     expect(search.groups.find((g) => g.reference?.name === 'NVIDIA GeForce RTX 5070')).toBeDefined();
     expect(search.groups.find((g) => g.reference?.name === 'NVIDIA GeForce RTX 5070 Ti')).toBeDefined();
   });

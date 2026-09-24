@@ -1,5 +1,5 @@
 import type { Connector, ConnectorQuery } from '../connectors/types.js';
-import { ACCESSORY_CATEGORIES, CATEGORIES, DEVICE_CATEGORIES, getCategory } from '../shared/categories.js';
+import { ACCESSORY_CATEGORIES, CATEGORIES, DEVICE_CATEGORIES, categoryTerms, getCategory } from '../shared/categories.js';
 import type {
   CategoryId,
   Condition,
@@ -160,7 +160,7 @@ export class SearchEngine {
         if (offer.category === params.category) scored.push({ offer, relevance: 1 });
         continue;
       }
-      const score = relevance(prepared, offer.title, `${offer.brand ?? ''} ${offer.mpn ?? ''}`);
+      const score = relevance(prepared, offer.title, `${offer.brand ?? ''} ${offer.mpn ?? ''} ${categoryTerms(offer.category)}`);
       if (score >= MIN_RELEVANCE) scored.push({ offer, relevance: score });
     }
     detectedCategory ??= dominantCategory(scored);

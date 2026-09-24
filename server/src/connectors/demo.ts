@@ -168,11 +168,15 @@ export function createDemoConnector(isEnabled: () => boolean, catalog?: Catalog)
     id: 'demo',
     merchantId: 'demo',
     enabled: isEnabled,
+    // Index construit au démarrage (≈ 1 s avec le catalogue complet) plutôt qu'à la première recherche.
+    warmup: async () => {
+      if (isEnabled()) getIndex();
+    },
     describe: () => ({ offers: getIndex().size, products: DEMO_CATALOG.length }),
     suggest: (prefix, limit) => getIndex().suggestTitles(prefix, limit),
     async search(query: ConnectorQuery): Promise<Offer[]> {
       if (query.browse && query.category) return getIndex().byCategory(query.category, query.limit * 8);
-      return getIndex().search(query.q, query.limit * 4);
+      return getIndex().search(query.q, query.limit * 10);
     },
   };
 }

@@ -1,4 +1,5 @@
 import type { Offer } from '../shared/types.js';
+import { categoryTerms } from '../shared/categories.js';
 import { tokenize } from './normalize.js';
 
 /** Index plein texte en mémoire sur des offres (flux, catalogues de boutiques, démo). */
@@ -20,7 +21,7 @@ export class OfferIndex {
     this.tokens = new Map();
     this.gtins = new Map();
     offers.forEach((offer, i) => {
-      for (const t of new Set(tokenize(`${offer.title} ${offer.brand ?? ''} ${offer.mpn ?? ''}`))) {
+      for (const t of new Set(tokenize(`${offer.title} ${offer.brand ?? ''} ${offer.mpn ?? ''} ${categoryTerms(offer.category)}`))) {
         const list = this.tokens.get(t);
         if (list) list.push(i);
         else this.tokens.set(t, [i]);

@@ -13,7 +13,7 @@ Production : **https://searchit.heiphaistos.org**
 - Filtres par état, catégorie, marchand, prix et stock. Les accessoires (coques, câbles…) sont masqués quand on cherche un appareil.
 - Navigation par catégorie (35 catégories, des processeurs aux onduleurs).
 - **Ma liste** : un panier de comparaison (par exemple tous les composants d'un PC). Il calcule le total optimal en achetant chez plusieurs marchands, et le total si tout est acheté chez un seul marchand.
-- **Catalogue de référence** (1 193 produits réels, 32 catégories, 114 marques) : caractéristiques techniques, génération et prix de lancement indicatif. Il alimente la page « Catalogue », la fiche technique immédiate des résultats, le comparateur, l'autocomplétion et le mode démo. Données dans `server/src/catalog/data/*.ts` ; API `/api/v1/catalog`.
+- **Catalogue de référence** (7 972 produits réels, 32 catégories, 188 marques) : caractéristiques techniques, génération et prix de lancement indicatif. Il alimente la page « Catalogue », la fiche technique immédiate des résultats, le comparateur, l'autocomplétion et le mode démo. Données dans `server/src/catalog/data/*.ts` ; API `/api/v1/catalog`.
 - **Suivis de prix** : prix cible par produit, revérification automatique et notification du navigateur quand la cible est atteinte (page « Suivis »).
 - **Bons plans** : les plus fortes baisses par rapport à la moyenne des 30 derniers jours, calculées uniquement sur des prix réellement relevés.
 - **Comparateur** : jusqu'à 4 produits côte à côte (prix neuf, reconditionné, occasion, prix au To, caractéristiques Icecat).
