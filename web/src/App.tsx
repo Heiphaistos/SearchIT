@@ -2,6 +2,8 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { EmptyState } from './components/ui';
 import { AdminPage } from './pages/AdminPage';
+import { CatalogPage } from './pages/CatalogPage';
+import { CatalogProductPage } from './pages/CatalogProductPage';
 import { ComparePage } from './pages/ComparePage';
 import { DealsPage } from './pages/DealsPage';
 import { DevelopersPage } from './pages/DevelopersPage';
@@ -21,6 +23,8 @@ const router = createBrowserRouter([
       { path: '/sources', element: <SourcesPage /> },
       { path: '/developpeurs', element: <DevelopersPage /> },
       { path: '/bons-plans', element: <DealsPage /> },
+      { path: '/catalogue', element: <CatalogPage /> },
+      { path: '/catalogue/:id', element: <CatalogProductPage /> },
       { path: '/suivis', element: <WatchPage /> },
       { path: '/comparer', element: <ComparePage /> },
       { path: '/admin', element: <AdminPage /> },

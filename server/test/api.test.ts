@@ -94,7 +94,7 @@ describe('POST /api/v1/lookup (configurateur)', () => {
     const body = res.json<LookupResponse>();
     const [cpu, gpu, hdd, nope] = body.results;
     expect(cpu.best?.title).toMatch(/7800X3D/);
-    expect(gpu.best?.title).toMatch(/RTX 5070 12 Go/);
+    expect(gpu.best?.title).toMatch(/RTX 5070(?! Ti)/);
     expect(hdd.lineTotal).toBeCloseTo(hdd.best!.price * 2 + (hdd.best!.shipping ?? 0), 2);
     expect(nope.found).toBe(false);
     expect(body.missing).toEqual(['nope']);
@@ -173,5 +173,31 @@ describe('navigation par catégorie', () => {
     const body = (await app.inject({ url: '/api/search?category=nas' })).json<SearchResponse>();
     expect(body.total).toBeGreaterThanOrEqual(5);
     for (const g of body.groups) expect(g.category).toBe('nas');
+  });
+});
+
+describe('regroupement des déclinaisons', () => {
+  it('ne fusionne jamais un modèle et sa version Ti / Pro', async () => {
+    const { groupOffers } = await import('../src/search/group.js');
+    const { makeOffer } = await import('../src/search/offer.js');
+    const o = (title: string) => ({ offer: makeOffer({ merchantId: 'm', merchantName: 'M', title, url: 'https://m.test', price: 500, category: 'gpu' }), relevance: 1 });
+    const groups = groupOffers([o('NVIDIA GeForce RTX 5070'), o('NVIDIA GeForce RTX 5070 Ti'), o('Carte graphique NVIDIA GeForce RTX 5070')]);
+    expect(groups.map((g) => g.offers.length).sort()).toEqual([1, 2]);
+  });
+});
+
+describe('GET /api/catalog', () => {
+  it('liste le catalogue, renvoie une fiche et rattache les résultats de recherche', async () => {
+    const list = (await app.inject({ url: '/api/catalog?category=nas&sort=name&pageSize=3' })).json();
+    expect(list.total).toBeGreaterThan(10);
+    expect(list.products).toHaveLength(3);
+    const item = (await app.inject({ url: `/api/catalog/${list.products[0].id}` })).json();
+    expect(item.reference.specs.length).toBeGreaterThan(2);
+    expect(item.similar.length).toBeGreaterThan(0);
+    expect((await app.inject({ url: '/api/catalog/inconnu' })).statusCode).toBe(404);
+    expect((await app.inject({ url: '/api/catalog?category=frigo' })).statusCode).toBe(400);
+    const search = (await app.inject({ url: '/api/search?q=rtx%205070' })).json<SearchResponse>();
+    expect(search.groups.find((g) => g.reference?.name === 'NVIDIA GeForce RTX 5070')).toBeDefined();
+    expect(search.groups.find((g) => g.reference?.name === 'NVIDIA GeForce RTX 5070 Ti')).toBeDefined();
   });
 });

@@ -8,7 +8,9 @@ import { addGroupToList, listStore } from '../lib/list';
 import { CategoryIcon } from './CategoryIcon';
 import { PriceHistoryBadge } from './PriceHistory';
 import { ProductSheetPanel } from './ProductSheet';
-import { ConditionBadge } from './ui';
+import { Link } from 'react-router-dom';
+import { GROUP_STYLE } from '../lib/groups';
+import { ConditionBadge, SpecTable } from './ui';
 import { WatchButton } from './WatchButton';
 
 function ProductImage({ group }: { group: ProductGroup }) {
@@ -26,8 +28,10 @@ function ProductImage({ group }: { group: ProductGroup }) {
     );
   }
   return (
-    <div className="grid size-full place-items-center bg-gradient-to-br from-brand-50 to-cyan-50 text-brand-500 dark:from-brand-500/10 dark:to-cyan-500/10 dark:text-brand-300">
-      <CategoryIcon category={group.category} className="size-9" />
+    <div className={`grid size-full place-items-center bg-gradient-to-br ${GROUP_STYLE[getCategory(group.category).group].tile}`}>
+      <span className={`grid size-12 place-items-center rounded-2xl shadow-lg ${GROUP_STYLE[getCategory(group.category).group].icon}`}>
+        <CategoryIcon category={group.category} className="size-6" />
+      </span>
     </div>
   );
 }
@@ -140,6 +144,7 @@ function sheetQueryFor(group: ProductGroup): string | null {
 export function ProductCard({ group }: { group: ProductGroup }) {
   const [panel, setPanel] = useState<'offers' | 'sheet' | null>(null);
   const sheetQuery = sheetQueryFor(group);
+  const hasSheet = Boolean(group.reference || sheetQuery);
   const inList = listStore.use().some((i) => i.ref === group.key);
   const compared = compareStore.use();
   const inCompare = compared.some((g) => g.key === group.key);
@@ -147,7 +152,7 @@ export function ProductCard({ group }: { group: ProductGroup }) {
   const best = group.bestOffer;
 
   return (
-    <article className="card animate-fade-in">
+    <article className="card animate-fade-in transition hover:shadow-(--shadow-lift)">
       <div className="flex flex-col gap-4 p-4 sm:flex-row sm:p-5">
         <div className="size-24 shrink-0 overflow-hidden rounded-xl bg-white ring-1 ring-slate-100 dark:bg-slate-800 dark:ring-slate-800 sm:size-28">
           <ProductImage group={group} />
@@ -162,6 +167,25 @@ export function ProductCard({ group }: { group: ProductGroup }) {
             {group.brand && <span>· {group.brand}</span>}
           </div>
           <h3 className="text-base font-semibold leading-snug">{group.title}</h3>
+          {group.reference && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
+              {group.reference.specs.slice(0, 3).map((s) => (
+                <span key={s.name} className="rounded-md bg-slate-100 px-1.5 py-0.5 text-slate-600 dark:bg-white/[0.06] dark:text-slate-300" title={s.name}>
+                  {s.value}
+                </span>
+              ))}
+              {group.reference.msrp && (
+                <span className="rounded-md px-1.5 py-0.5 text-slate-500 dark:text-slate-400">
+                  Lancement {formatPrice(group.reference.msrp)}
+                  {group.bestOffer.totalPrice < group.reference.msrp * 0.95 && (
+                    <strong className="ml-1 text-emerald-600 dark:text-emerald-400">
+                      −{Math.round((1 - group.bestOffer.totalPrice / group.reference.msrp) * 100)} %
+                    </strong>
+                  )}
+                </span>
+              )}
+            </div>
+          )}
           <div className="mt-2.5">
             <BestByCondition group={group} />
           </div>
@@ -182,7 +206,7 @@ export function ProductCard({ group }: { group: ProductGroup }) {
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-row items-end justify-between gap-3 sm:w-48 sm:flex-col sm:items-end">
+        <div className="flex shrink-0 flex-wrap items-end justify-between gap-3 sm:flex-col sm:flex-nowrap sm:items-end">
           <div className="sm:text-right">
             <div className="text-xs text-slate-500 dark:text-slate-400">
               Meilleur prix{best.isDemo && <span className="ml-1 font-medium text-amber-600 dark:text-amber-400">· fictif (démo)</span>}
@@ -197,7 +221,7 @@ export function ProductCard({ group }: { group: ProductGroup }) {
               chez <span className="font-medium text-slate-700 dark:text-slate-200">{best.merchantName}</span> · {CONDITION_META[best.condition].label.toLowerCase()}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end gap-2 sm:flex-nowrap">
             <button
               onClick={() => toggleCompare(group)}
               disabled={!inCompare && compareFull}
@@ -215,7 +239,7 @@ export function ProductCard({ group }: { group: ProductGroup }) {
               title="Ajouter à ma liste"
             >
               {inList ? <Check className="size-4" /> : <ListPlus className="size-4" />}
-              <span className="sr-only sm:not-sr-only">{inList ? 'Ajouté' : 'Liste'}</span>
+              <span className="sr-only xl:not-sr-only">{inList ? 'Ajouté' : 'Liste'}</span>
             </button>
             <a href={best.url} target="_blank" rel="nofollow sponsored noopener noreferrer" className="btn-primary px-3">
               Voir <ExternalLink className="size-4" />
@@ -224,7 +248,7 @@ export function ProductCard({ group }: { group: ProductGroup }) {
         </div>
       </div>
 
-      {(group.offers.length > 1 || sheetQuery) && (
+      {(group.offers.length > 1 || hasSheet) && (
         <>
           <div className="flex overflow-hidden rounded-b-2xl border-t border-slate-100 dark:border-slate-800">
             {group.offers.length > 1 && (
@@ -232,7 +256,7 @@ export function ProductCard({ group }: { group: ProductGroup }) {
                 {panel === 'offers' ? 'Masquer les offres' : `Comparer les ${group.offers.length} offres`}
               </PanelButton>
             )}
-            {sheetQuery && (
+            {hasSheet && (
               <PanelButton active={panel === 'sheet'} onClick={() => setPanel((p) => (p === 'sheet' ? null : 'sheet'))}>
                 <FileText className="size-4" /> Fiche technique
               </PanelButton>
@@ -243,9 +267,21 @@ export function ProductCard({ group }: { group: ProductGroup }) {
               <OffersTable offers={group.offers} bestId={best.id} />
             </div>
           )}
-          {panel === 'sheet' && sheetQuery && (
+          {panel === 'sheet' && hasSheet && (
             <div className="border-t border-slate-100 p-4 dark:border-slate-800 sm:p-5">
-              <ProductSheetPanel query={sheetQuery} />
+              {group.reference ? (
+                <div>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="font-semibold">{group.reference.name}</h4>
+                    <Link to={`/catalogue/${group.reference.id}`} className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400">
+                      Fiche complète du catalogue →
+                    </Link>
+                  </div>
+                  <SpecTable specs={group.reference.specs} columns={2} />
+                </div>
+              ) : (
+                <ProductSheetPanel query={sheetQuery!} />
+              )}
             </div>
           )}
         </>

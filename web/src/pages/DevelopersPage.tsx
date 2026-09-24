@@ -41,7 +41,7 @@ export function DevelopersPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <h1 className="text-2xl font-bold tracking-tight">API SearchIT</h1>
+      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">API SearchIT</h1>
       <p className="mt-2 text-slate-600 dark:text-slate-400">
         L’API publique <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">/api/v1</code> permet à d’autres applications (en particulier le
         configurateur de PC) d’obtenir les meilleurs prix. Spécification complète :{' '}

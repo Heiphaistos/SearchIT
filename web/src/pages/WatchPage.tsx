@@ -2,7 +2,7 @@ import { Bell, BellRing, ExternalLink, RefreshCw, Trash2, TrendingDown } from 'l
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CategoryIcon } from '../components/CategoryIcon';
-import { EmptyState, ErrorBox } from '../components/ui';
+import { EmptyState, ErrorBox, PageHeader } from '../components/ui';
 import { formatPrice, plural } from '../lib/format';
 import { checkWatchlist, setTarget, unwatch, watchMetaStore, watchStore } from '../lib/watch';
 
@@ -58,15 +58,13 @@ export function WatchPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Suivis de prix</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+      <PageHeader
+        icon={<Bell className="size-6" />}
+        title="Suivis de prix"
+        subtitle={<>
             {plural(items.length, 'produit suivi', 'produits suivis')} · {reached.length} cible{reached.length > 1 ? 's' : ''} atteinte{reached.length > 1 ? 's' : ''} · dernière
-            vérification {timeAgo(meta.lastRun)}
-          </p>
-        </div>
-        <div className="flex gap-2">
+            vérification {timeAgo(meta.lastRun)}</>}
+        actions={<>
           {permission === 'default' && (
             <button className="btn-outline" onClick={() => void Notification.requestPermission().then(setPermission)}>
               <BellRing className="size-4" /> Activer les notifications
@@ -75,8 +73,8 @@ export function WatchPage() {
           <button className="btn-primary" onClick={() => void refresh()} disabled={loading}>
             <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} /> Vérifier maintenant
           </button>
-        </div>
-      </div>
+        </>}
+      />
       {error && (
         <div className="mb-4">
           <ErrorBox message={error} />

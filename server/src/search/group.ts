@@ -1,5 +1,6 @@
 import type { Offer, ProductGroup } from '../shared/types.js';
 import { fingerprintTokens, jaccard, numericTokens } from './normalize.js';
+import { VARIANT_TOKENS } from './relevance.js';
 
 export interface ScoredOffer {
   offer: Offer;
@@ -37,7 +38,11 @@ export function groupOffers(scored: ScoredOffer[]): ProductGroup[] {
     let bucket = (item.offer.gtin && byGtin.get(item.offer.gtin)) || byPrint.get(print);
     if (!bucket) {
       bucket = buckets.find(
-        (b) => b.numeric === numeric && b.items[0].offer.category === item.offer.category && jaccard(b.tokens, tokens) >= 0.8,
+        (b) =>
+          b.numeric === numeric &&
+          b.items[0].offer.category === item.offer.category &&
+          sameVariants(b.tokens, tokens) &&
+          jaccard(b.tokens, tokens) >= 0.8,
       );
     }
     if (!bucket) {
@@ -56,6 +61,13 @@ export function groupOffers(scored: ScoredOffer[]): ProductGroup[] {
 }
 
 /** Offre la moins chère, en privilégiant celles qui ne sont pas en rupture. */
+/** « RTX 5070 » et « RTX 5070 Ti » (ou iPhone 16 / 16 Pro) ne sont jamais le même produit. */
+function sameVariants(a: string[], b: string[]): boolean {
+  const va = a.filter((t) => VARIANT_TOKENS.has(t)).sort().join(' ');
+  const vb = b.filter((t) => VARIANT_TOKENS.has(t)).sort().join(' ');
+  return va === vb;
+}
+
 function cheapest(offers: Offer[]): Offer | undefined {
   const available = offers.filter((o) => o.inStock !== false);
   let best: Offer | undefined;

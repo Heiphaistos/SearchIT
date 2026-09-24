@@ -54,3 +54,37 @@ export function DemoBanner() {
     </div>
   );
 }
+
+/** En-tête de page homogène : icône, titre, sous-titre et actions. */
+export function PageHeader({ icon, title, subtitle, actions }: { icon?: ReactNode; title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
+  return (
+    <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <div className="flex items-start gap-4">
+        {icon && (
+          <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-600 text-white shadow-lg shadow-brand-500/30">
+            {icon}
+          </div>
+        )}
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
+          {subtitle && <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>}
+        </div>
+      </div>
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+    </div>
+  );
+}
+
+/** Tableau de caractéristiques (catalogue de référence ou Icecat). */
+export function SpecTable({ specs, columns = 1 }: { specs: Array<{ name: string; value: string }>; columns?: 1 | 2 }) {
+  return (
+    <dl className={`grid gap-x-8 text-sm ${columns === 2 ? 'sm:grid-cols-2' : ''}`}>
+      {specs.map((s) => (
+        <div key={s.name} className="flex justify-between gap-4 border-b border-slate-100 py-2 dark:border-white/[0.06]">
+          <dt className="text-slate-500 dark:text-slate-400">{s.name}</dt>
+          <dd className="text-right font-medium">{s.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}

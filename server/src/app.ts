@@ -7,6 +7,7 @@ import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { config } from './config.js';
+import { loadCatalog, toReference, type Catalog } from './catalog/index.js';
 import { getProductSheet } from './connectors/icecat.js';
 import { createRegistry, type Registry } from './connectors/registry.js';
 import { openApiSpec } from './openapi.js';
@@ -14,7 +15,7 @@ import { ratesInfo, refreshRates } from './search/currency.js';
 import { SearchEngine } from './search/engine.js';
 import { HistoryStore } from './search/history.js';
 import { CATEGORIES, CATEGORY_GROUPS, isCategoryId } from './shared/categories.js';
-import type { Condition, LookupItem, LookupRequest, SearchParams, SortKey } from './shared/types.js';
+import type { CatalogSort, CategoryId, Condition, LookupItem, LookupRequest, SearchParams, SortKey } from './shared/types.js';
 
 const CONDITIONS: Condition[] = ['new', 'refurbished', 'used'];
 const SORTS: SortKey[] = ['relevance', 'price-asc', 'price-desc', 'savings', 'offers', 'unit-price'];
@@ -102,6 +103,7 @@ export function parseLookupRequest(body: unknown): LookupRequest {
 
 export interface AppOptions {
   registry?: Registry;
+  catalog?: Catalog;
   /** Fichier d'historique ; `null` pour un historique en mémoire (tests). */
   historyFile?: string | null;
   logger?: boolean;
@@ -109,10 +111,12 @@ export interface AppOptions {
 }
 
 export async function buildApp(options: AppOptions = {}): Promise<FastifyInstance> {
-  const registry = options.registry ?? createRegistry();
+  const catalog = options.catalog ?? (await loadCatalog());
+  const registry = options.registry ?? createRegistry(catalog);
   const history = new HistoryStore(options.historyFile === undefined ? config.historyFile : options.historyFile);
   const engine = new SearchEngine(registry.connectors, {
     history,
+    catalog,
     timeoutMs: config.searchTimeoutMs,
     cacheTtlMs: config.cacheTtlSeconds * 1000,
     merchantNames: new Map(registry.merchants.map((m) => [m.id, m.name])),
@@ -181,6 +185,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     status: 'ok',
     demo: engine.isDemo(),
     sources: engine.activeConnectors().map((c) => c.id),
+    catalog: catalog.size,
     currencies: ratesInfo(),
   }));
 
@@ -254,6 +259,32 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     };
   });
 
+  // Catalogue de référence : base de produits réels avec caractéristiques.
+  const catalogList = async (req: FastifyRequest) => {
+    const q = req.query as Record<string, string | undefined>;
+    if (q.category && !isCategoryId(q.category)) throw new BadRequest(`Catégorie inconnue : ${q.category}`);
+    const sort = (['recent', 'name', 'msrp-asc', 'msrp-desc'] as CatalogSort[]).includes(q.sort as CatalogSort) ? (q.sort as CatalogSort) : 'recent';
+    return catalog.list({
+      category: q.category as CategoryId | undefined,
+      q: q.q?.slice(0, 100),
+      brand: q.brand,
+      tag: q.tag,
+      sort,
+      page: Number(q.page) || 1,
+      pageSize: Number(q.pageSize) || 48,
+    });
+  };
+  const catalogItem = async (req: FastifyRequest, reply: FastifyReply) => {
+    const product = catalog.get((req.params as { id: string }).id);
+    if (!product) return reply.status(404).send({ error: 'Produit inconnu' });
+    return { product, reference: toReference(product), similar: catalog.similar(product) };
+  };
+  app.get('/api/catalog', limited(rl * 2), catalogList);
+  app.get('/api/catalog/stats', async () => catalog.stats());
+  app.get('/api/catalog/:id', limited(rl * 2), catalogItem);
+  app.get('/api/v1/catalog', { preHandler: requireKey, ...limited(rl * 2) }, catalogList);
+  app.get('/api/v1/catalog/:id', { preHandler: requireKey, ...limited(rl * 2) }, catalogItem);
+
   app.get('/api/history/:key', async (req) => {
     const { key } = req.params as { key: string };
     return { key, points: history.points(key), summary: history.summary(key) ?? null };
@@ -279,6 +310,8 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     const urls = [
       '/',
       '/bons-plans',
+      '/catalogue',
+      ...catalog.products.map((p) => `/catalogue/${p.id}`),
       '/sources',
       '/developpeurs',
       ...CATEGORIES.filter((c) => c.id !== 'other').map((c) => `/recherche?category=${c.id}`),

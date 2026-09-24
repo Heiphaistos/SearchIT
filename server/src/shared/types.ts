@@ -142,6 +142,48 @@ export interface UnitPrice {
   unit: '€/To' | '€/Go';
 }
 
+/** Fiche du catalogue de référence rattachée à un produit. */
+export interface ReferenceInfo {
+  id: string;
+  name: string;
+  brand: string;
+  family?: string;
+  year?: number;
+  /** Prix de lancement indicatif (€ TTC). */
+  msrp?: number;
+  tags?: string[];
+  specs: Array<{ name: string; value: string }>;
+}
+
+export type CatalogSort = 'recent' | 'name' | 'msrp-asc' | 'msrp-desc';
+
+export interface CatalogFacets {
+  categories: Array<{ id: CategoryId; count: number }>;
+  brands: Array<{ id: string; count: number }>;
+  tags: Array<{ id: string; count: number }>;
+}
+
+export interface CatalogItem {
+  id: string;
+  category: CategoryId;
+  brand: string;
+  name: string;
+  family?: string;
+  year?: number;
+  msrp?: number;
+  refurbishable?: boolean;
+  specs: Record<string, string | number>;
+  tags?: string[];
+}
+
+export interface CatalogListResponse {
+  total: number;
+  page: number;
+  pageSize: number;
+  products: CatalogItem[];
+  facets: CatalogFacets;
+}
+
 export interface ProductGroup {
   key: string;
   title: string;
@@ -164,6 +206,8 @@ export interface ProductGroup {
   history?: PriceHistory;
   /** Prix au To (stockage) ou au Go (mémoire), calculé sur la meilleure offre. */
   unitPrice?: UnitPrice;
+  /** Produit correspondant dans le catalogue de référence (caractéristiques, prix de lancement). */
+  reference?: ReferenceInfo;
 }
 
 export type SortKey = 'relevance' | 'price-asc' | 'price-desc' | 'savings' | 'offers' | 'unit-price';

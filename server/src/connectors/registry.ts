@@ -1,3 +1,4 @@
+import type { Catalog } from '../catalog/index.js';
 import { config } from '../config.js';
 import { getMerchantDefinitions, requiredEnvFor, type MerchantDefinition } from '../merchants.js';
 import type { MerchantInfo } from '../shared/types.js';
@@ -45,7 +46,7 @@ export interface Registry {
   merchantInfo(): MerchantInfo[];
 }
 
-export function createRegistry(): Registry {
+export function createRegistry(catalog?: Catalog): Registry {
   const merchants = getMerchantDefinitions();
   const real = merchants.map(createConnector);
   // En mode « auto », la démo reste active tant qu'aucune grande source (Google Shopping,
@@ -53,7 +54,7 @@ export function createRegistry(): Registry {
   // ne suffisent pas à remplir le site. Chaque offre de démo est marquée comme telle.
   const broad = real.filter((_, i) => merchants[i].kind !== 'shopify' && merchants[i].kind !== 'woocommerce');
   const demoEnabled = () => config.demoMode === 'on' || (config.demoMode === 'auto' && !broad.some((c) => c.enabled()));
-  const connectors = [...real, createDemoConnector(demoEnabled)];
+  const connectors = [...real, createDemoConnector(demoEnabled, catalog)];
 
   return {
     connectors,

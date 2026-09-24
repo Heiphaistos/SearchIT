@@ -1,4 +1,4 @@
-import type { Category, CategoryGroup, Deal, LookupRequest, LookupResponse, MerchantInfo, SearchParams, SearchResponse } from '@shared/types';
+import type { CatalogItem, CatalogListResponse, Category, CategoryGroup, CategoryId, Deal, LookupRequest, ReferenceInfo, LookupResponse, MerchantInfo, SearchParams, SearchResponse } from '@shared/types';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -35,6 +35,13 @@ export const api = {
   lookup: (body: LookupRequest) =>
     request<LookupResponse>('/api/lookup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
   merchants: () => request<{ demo: boolean; merchants: Array<MerchantInfo & { details?: Record<string, unknown> }> }>('/api/merchants'),
+  catalog: (params: Record<string, string | number | undefined>, signal?: AbortSignal) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') qs.set(k, String(v));
+    return request<CatalogListResponse>(`/api/catalog?${qs}`, { signal });
+  },
+  catalogItem: (id: string) => request<{ product: CatalogItem; reference: ReferenceInfo; similar: CatalogItem[] }>(`/api/catalog/${encodeURIComponent(id)}`),
+  catalogStats: () => request<{ products: number; categories: Array<{ id: CategoryId; count: number }>; brands: number }>('/api/catalog/stats'),
   deals: (category?: string) => request<{ deals: Deal[]; demo: boolean }>(`/api/deals${category ? `?category=${category}` : ''}`),
   adminStats: (token: string) => request<Record<string, unknown>>('/api/admin/stats', { headers: { 'x-admin-token': token } }),
   categories: () => request<{ groups: Record<CategoryGroup, string>; categories: Omit<Category, 'keywords'>[] }>('/api/categories'),

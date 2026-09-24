@@ -4,7 +4,7 @@ import { ExternalLink, Scale, Trash2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CategoryIcon } from '../components/CategoryIcon';
-import { EmptyState } from '../components/ui';
+import { EmptyState, PageHeader } from '../components/ui';
 import { clearCompare, compareStore, removeFromCompare } from '../lib/compare';
 import { formatPrice } from '../lib/format';
 
@@ -52,7 +52,13 @@ export function ComparePage() {
   const specValue = new Map<string, Map<string, string>>();
   for (const g of items) {
     const values = new Map<string, string>();
+    // Catalogue de référence d'abord, complété par Icecat quand l'EAN est connu.
+    for (const it of g.reference?.specs ?? []) {
+      values.set(it.name, it.value);
+      if (!specNames.includes(it.name)) specNames.push(it.name);
+    }
     for (const grp of sheets[g.key]?.specs ?? []) for (const it of grp.items) {
+      if (values.has(it.name)) continue;
       values.set(it.name, it.value);
       if (!specNames.includes(it.name)) specNames.push(it.name);
     }
@@ -77,14 +83,16 @@ export function ComparePage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-          <Scale className="size-6 text-brand-500" /> Comparer {items.length} produits
-        </h1>
-        <button className="btn-ghost text-red-600 dark:text-red-400" onClick={clearCompare}>
-          <Trash2 className="size-4" /> Tout retirer
-        </button>
-      </div>
+      <PageHeader
+        icon={<Scale className="size-6" />}
+        title={`Comparer ${items.length} produits`}
+        subtitle="Le meilleur prix de chaque ligne est en vert. Caractéristiques issues du catalogue SearchIT et d’Icecat."
+        actions={
+          <button className="btn-ghost text-red-600 dark:text-red-400" onClick={clearCompare}>
+            <Trash2 className="size-4" /> Tout retirer
+          </button>
+        }
+      />
       <div className="card overflow-x-auto">
         <table className="w-full min-w-[640px] table-fixed text-sm">
           <thead>
@@ -155,7 +163,7 @@ export function ComparePage() {
         </table>
       </div>
       {!shownSpecs.length && (
-        <p className="mt-3 text-xs text-slate-500">Les caractéristiques techniques s’affichent lorsque les produits ont un code EAN connu dans le catalogue ouvert Icecat.</p>
+        <p className="mt-3 text-xs text-slate-500">Les caractéristiques s’affichent pour les produits reconnus dans le catalogue SearchIT ou dans le catalogue ouvert Icecat.</p>
       )}
     </div>
   );

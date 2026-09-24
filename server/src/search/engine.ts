@@ -20,6 +20,7 @@ import { TtlCache } from './cache.js';
 import { cleanTitle, groupOffers, type ScoredOffer } from './group.js';
 import { detectCategory, normalizeGtin, normalizeText } from './normalize.js';
 import { refreshRates, toEur } from './currency.js';
+import type { Catalog } from '../catalog/index.js';
 import type { HistoryStore } from './history.js';
 import { round2 } from './offer.js';
 import { unitPriceFor } from './unit-price.js';
@@ -35,6 +36,8 @@ export interface EngineOptions {
   merchantNames: Map<string, string>;
   /** Historique des prix / recherches populaires (facultatif). */
   history?: HistoryStore;
+  /** Catalogue de référence (caractéristiques, prix de lancement). */
+  catalog?: Catalog;
 }
 
 interface FetchResult {
@@ -191,6 +194,7 @@ export class SearchEngine {
     for (const g of grouped) {
       g.unitPrice = unitPriceFor(g.category, g.title, g.bestOffer.totalPrice);
       g.history = history?.summary(g.key);
+      g.reference = this.options.catalog?.reference(g.title, g.category);
     }
     const groups = sortGroups(grouped, params.sort ?? 'relevance');
     return {
@@ -222,6 +226,7 @@ export class SearchEngine {
       queries.push(q);
     };
     for (const q of this.options.history?.popularQueries(prefix, limit) ?? []) add(q);
+    if (p.length >= 2) for (const name of this.options.catalog?.suggest(prefix, limit) ?? []) add(name);
     if (p.length >= 2) {
       for (const c of this.activeConnectors()) for (const t of c.suggest?.(prefix, limit) ?? []) add(cleanTitle(t));
     }

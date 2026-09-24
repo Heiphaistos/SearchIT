@@ -25,7 +25,7 @@ export function extractConditionIntent(q: string): { query: string; conditions: 
 }
 
 // Déclinaisons d'un modèle : « RTX 5070 » ≠ « RTX 5070 Ti », « iPhone 16 » ≠ « iPhone 16 Pro ».
-const VARIANT_TOKENS = new Set(['ti', 'super', 'xt', 'xtx', 'pro', 'max', 'plus', 'ultra', 'mini', 'lite', 'fe', 'se', 'air', 'x3d']);
+export const VARIANT_TOKENS = new Set(['ti', 'super', 'xt', 'xtx', 'pro', 'max', 'plus', 'ultra', 'mini', 'lite', 'fe', 'se', 'air', 'x3d']);
 
 export interface PreparedQuery {
   tokens: string[];

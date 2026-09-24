@@ -5,14 +5,14 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CategoryIcon } from '../components/CategoryIcon';
 import { Sparkline } from '../components/PriceHistory';
-import { EmptyState, ErrorBox } from '../components/ui';
+import { EmptyState, ErrorBox, PageHeader } from '../components/ui';
 import { api } from '../lib/api';
 import { formatPrice } from '../lib/format';
 
 function DealCard({ deal }: { deal: Deal }) {
   const history = { lowest: deal.current, lowestDate: '', since: deal.points[0]?.d ?? '', days: deal.points.length, points: deal.points };
   return (
-    <Link to={`/recherche?q=${encodeURIComponent(deal.title)}`} className="card group flex flex-col p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+    <Link to={`/recherche?q=${encodeURIComponent(deal.title)}`} className="card card-hover group flex flex-col p-4">
       <div className="flex items-start gap-3">
         <div className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-slate-100 text-slate-500 dark:bg-slate-800">
           {deal.imageUrl ? <img src={deal.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-full object-contain p-1" /> : <CategoryIcon category={deal.category} className="size-6" />}
@@ -49,15 +49,11 @@ export function DealsPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-            <Flame className="size-6 text-orange-500" /> Bons plans
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-            Les plus fortes baisses par rapport à la moyenne des 30 derniers jours, calculées sur les prix réellement relevés par SearchIT.
-          </p>
-        </div>
+      <PageHeader
+        icon={<Flame className="size-6" />}
+        title="Bons plans"
+        subtitle="Les plus fortes baisses par rapport à la moyenne des 30 derniers jours, calculées sur les prix réellement relevés par SearchIT."
+        actions={
         <select className="input w-auto cursor-pointer" value={category} onChange={(e) => setQs(e.target.value ? { category: e.target.value } : {})} aria-label="Catégorie">
           <option value="">Toutes les catégories</option>
           {CATEGORIES.filter((c) => c.id !== 'other').map((c) => (
@@ -66,7 +62,8 @@ export function DealsPage() {
             </option>
           ))}
         </select>
-      </div>
+        }
+      />
       {error && <ErrorBox message={error} />}
       {data && !data.deals.length && (
         <EmptyState icon={<Flame className="size-6" />} title="Pas encore de bons plans détectés">
