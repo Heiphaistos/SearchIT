@@ -1,0 +1,4 @@
+{ "meta": { "count": 2 }, "data": { "products": [
+  { "sku": "S1", "name": "Serveur Dell PowerEdge R740 2x Xeon Gold 6130 128 Go - Reconditionné", "url": "https://example.test/r740", "prix": "2 190,00 €", "stock": 3, "marque": "Dell" },
+  { "sku": "S2", "name": "Switch TP-Link TL-SG108 8 ports", "url": "https://example.test/sg108", "prix": 21.9, "stock": 0 }
+] } }

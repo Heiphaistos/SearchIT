@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<rss xmlns:g="http://base.google.com/ns/1.0" version="2.0">
+  <channel>
+    <title>Flux test</title>
+    <item>
+      <g:id>BM-1</g:id>
+      <g:title>iPhone 13 128 Go - Minuit - Débloqué</g:title>
+      <g:link>https://www.example-refurb.fr/p/iphone-13</g:link>
+      <g:image_link>https://img.example/iphone13.jpg</g:image_link>
+      <g:price>399.00 EUR</g:price>
+      <g:sale_price>379.00 EUR</g:sale_price>
+      <g:condition>new</g:condition>
+      <g:availability>in stock</g:availability>
+      <g:brand>Apple</g:brand>
+      <g:gtin>0194252707340</g:gtin>
+      <g:shipping><g:country>FR</g:country><g:price>0.00 EUR</g:price></g:shipping>
+    </item>
+    <item>
+      <g:id>BM-2</g:id>
+      <g:title>Chargeur USB-C 20W</g:title>
+      <g:link>https://www.example-refurb.fr/p/chargeur</g:link>
+      <g:price>19,99 EUR</g:price>
+      <g:availability>out of stock</g:availability>
+    </item>
+  </channel>
+</rss>
