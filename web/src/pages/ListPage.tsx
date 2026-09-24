@@ -1,12 +1,14 @@
 import type { Condition, LookupResponse } from '@shared/types';
-import { ExternalLink, ListChecks, Minus, Plus, RefreshCw, Store, Trash2 } from 'lucide-react';
+import { ExternalLink, ListChecks, Minus, Pencil, Plus, RefreshCw, Search, Store, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CategoryIcon } from '../components/CategoryIcon';
-import { ConditionBadge, DemoBanner, EmptyState, ErrorBox } from '../components/ui';
+import { ConditionBadge, EmptyState, ErrorBox } from '../components/ui';
 import { api } from '../lib/api';
 import { formatPrice, plural } from '../lib/format';
+import { enginePcEditUrl, enginePcStore } from '../lib/enginepc';
 import { clearList, listStore, removeListItem, updateListItem } from '../lib/list';
+import { usePageMeta } from '../lib/meta';
 
 const CONDITION_CHOICES: Array<{ id: string; label: string; value: Condition[] }> = [
   { id: 'new-refurb', label: 'Neuf ou reconditionné', value: ['new', 'refurbished'] },
@@ -17,6 +19,8 @@ const CONDITION_CHOICES: Array<{ id: string; label: string; value: Condition[] }
 
 export function ListPage() {
   const items = listStore.use();
+  const enginePc = enginePcStore.use();
+  const hasEnginePcItems = items.some((i) => i.ref.startsWith('enginepc:'));
   const [choice, setChoice] = useState(CONDITION_CHOICES[0].id);
   const [result, setResult] = useState<LookupResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -36,7 +40,8 @@ export function ListPage() {
       const conditions = CONDITION_CHOICES.find((c) => c.id === choice)!.value;
       setResult(
         await api.lookup({
-          items: current.map((i) => ({ ref: i.ref, query: i.query, category: i.category, gtin: i.gtin, quantity: i.quantity })),
+          // « other » (ex. stockage EnginePC, SSD ou disque dur) : catégorie détectée d'après le nom.
+          items: current.map((i) => ({ ref: i.ref, query: i.query, category: i.category === 'other' ? undefined : i.category, gtin: i.gtin, quantity: i.quantity })),
           conditions,
           alternatives: 5,
         }),
@@ -48,8 +53,8 @@ export function ListPage() {
     }
   }, [choice]);
 
+  usePageMeta('Ma liste', 'Calculez le meilleur prix total de votre liste de produits, par exemple tous les composants d’un PC.');
   useEffect(() => {
-    document.title = 'Ma liste – SearchIT';
     void compute();
   }, [compute, itemsKey]);
 
@@ -92,7 +97,10 @@ export function ListPage() {
           </button>
           <button
             onClick={() => {
-              if (confirm('Vider la liste ?')) clearList();
+              if (confirm('Vider la liste ?')) {
+                clearList();
+                enginePcStore.set(null);
+              }
             }}
             className="btn-ghost text-red-600 dark:text-red-400"
           >
@@ -101,9 +109,15 @@ export function ListPage() {
         </div>
       </div>
 
-      {result?.demo && (
-        <div className="mb-5">
-          <DemoBanner />
+      {enginePc && hasEnginePcItems && (
+        <div className="card mb-5 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm">
+            Configuration importée depuis EnginePC : <strong>{enginePc.name}</strong>. Les composants sont recherchés d’après leur nom : vérifiez que chaque
+            offre correspond bien au modèle voulu.
+          </p>
+          <a href={enginePcEditUrl(enginePc.data)} className="btn-outline shrink-0">
+            <Pencil className="size-4" /> Modifier dans EnginePC
+          </a>
         </div>
       )}
       {error && (
@@ -148,8 +162,15 @@ export function ListPage() {
                     {r?.best && item.quantity > 1 && <div className="text-xs text-slate-500">{formatPrice(r.best.price)} / u.</div>}
                   </div>
                   {r?.best ? (
-                    <a href={r.best.url} target="_blank" rel="nofollow sponsored noopener noreferrer" className="btn-primary size-9 p-0" aria-label="Voir l’offre">
-                      <ExternalLink className="size-4" />
+                    <a
+                      href={r.best.url}
+                      target="_blank"
+                      rel="nofollow sponsored noopener noreferrer"
+                      className="btn-primary size-9 p-0"
+                      aria-label={r.best.isDemo ? `Chercher chez ${r.best.merchantName} (prix affiché fictif)` : `Voir l’offre chez ${r.best.merchantName}`}
+                      title={r.best.isDemo ? 'Prix fictif : ouvre la recherche du marchand' : undefined}
+                    >
+                      {r.best.isDemo ? <Search className="size-4" /> : <ExternalLink className="size-4" />}
                     </a>
                   ) : (
                     <span className="size-9" />

@@ -1,13 +1,14 @@
-import { getCategory, isCategoryId } from '@shared/categories';
+import { fromExternalCategory, getCategory } from '@shared/categories';
 import type { Condition, SearchParams, SearchResponse, SortKey } from '@shared/types';
 import { PackageSearch, SlidersHorizontal, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Filters } from '../components/Filters';
 import { ProductCard } from '../components/ProductCard';
-import { DemoBanner, EmptyState, ErrorBox, Spinner } from '../components/ui';
+import { EmptyState, ErrorBox, Spinner } from '../components/ui';
 import { api, searchParamsToQuery } from '../lib/api';
 import { plural } from '../lib/format';
+import { usePageMeta } from '../lib/meta';
 
 const SORTS: Array<{ id: SortKey; label: string }> = [
   { id: 'relevance', label: 'Pertinence' },
@@ -20,17 +21,17 @@ const SORTS: Array<{ id: SortKey; label: string }> = [
 function readParams(qs: URLSearchParams): SearchParams {
   const list = (key: string) => qs.get(key)?.split(',').filter(Boolean);
   const num = (key: string) => (qs.get(key) !== null && qs.get(key) !== '' && !Number.isNaN(Number(qs.get(key))) ? Number(qs.get(key)) : undefined);
-  const category = qs.get('category');
+  // Liens entrants (ex. EnginePC) : catégories externes converties, EAN utilisé si « q » est vide.
   return {
-    q: qs.get('q') ?? '',
-    category: isCategoryId(category) ? category : undefined,
-    conditions: list('conditions') as Condition[] | undefined,
+    q: (qs.get('q') || qs.get('ean') || '').trim().slice(0, 200),
+    category: fromExternalCategory(qs.get('category')),
+    conditions: list('conditions')?.filter((c): c is Condition => c === 'new' || c === 'refurbished' || c === 'used'),
     merchants: list('merchants'),
     minPrice: num('minPrice'),
     maxPrice: num('maxPrice'),
     inStockOnly: qs.get('inStock') === 'true' || undefined,
     hideAccessories: qs.get('hideAccessories') === 'false' ? false : undefined,
-    sort: (qs.get('sort') as SortKey) ?? 'relevance',
+    sort: SORTS.find((s) => s.id === qs.get('sort'))?.id ?? 'relevance',
     page: num('page') ?? 1,
   };
 }
@@ -42,6 +43,8 @@ export function SearchPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const heading = params.q || (params.category ? getCategory(params.category).label : '');
+  usePageMeta(heading ? `Prix ${heading}` : 'Recherche', heading ? `Comparez les prix de « ${heading} » en neuf, reconditionné et occasion chez les marchands français.` : undefined);
 
   useEffect(() => {
     if (!params.q && !params.category) return;
@@ -59,7 +62,6 @@ export function SearchPage() {
         setError(err.message);
         setLoading(false);
       });
-    document.title = `${params.q || (params.category ? getCategory(params.category).label : '')} – SearchIT`;
     return () => controller.abort();
   }, [params]);
 
@@ -97,12 +99,6 @@ export function SearchPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-      {data?.demo && (
-        <div className="mb-5">
-          <DemoBanner />
-        </div>
-      )}
-
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">

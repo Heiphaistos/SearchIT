@@ -3,6 +3,7 @@ import { Layout } from './components/Layout';
 import { EmptyState } from './components/ui';
 import { DevelopersPage } from './pages/DevelopersPage';
 import { HomePage } from './pages/HomePage';
+import { ConfigurationPage } from './pages/ConfigurationPage';
 import { ListPage } from './pages/ListPage';
 import { SearchPage } from './pages/SearchPage';
 import { SourcesPage } from './pages/SourcesPage';
@@ -14,6 +15,7 @@ const router = createBrowserRouter([
       { path: '/', element: <HomePage /> },
       { path: '/recherche', element: <SearchPage /> },
       { path: '/liste', element: <ListPage /> },
+      { path: '/configuration', element: <ConfigurationPage /> },
       { path: '/sources', element: <SourcesPage /> },
       { path: '/developpeurs', element: <DevelopersPage /> },
       {
