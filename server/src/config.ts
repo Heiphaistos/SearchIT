@@ -17,6 +17,13 @@ function list(name: string): string[] {
     .filter(Boolean);
 }
 
+function trustProxy(): boolean | string[] {
+  const v = list('TRUST_PROXY');
+  if (v.length === 1 && v[0] === 'false') return false;
+  if (!v.length || (v.length === 1 && v[0] === 'true')) return ['127.0.0.1', '::1', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'];
+  return v;
+}
+
 export type DemoMode = 'auto' | 'on' | 'off';
 
 export const config = {
@@ -28,10 +35,12 @@ export const config = {
   apiKeys: list('API_KEYS'),
   /** auto : démo active seulement si aucune source réelle n'est configurée. */
   demoMode: (['auto', 'on', 'off'].includes(process.env.DEMO_MODE ?? '') ? process.env.DEMO_MODE : 'auto') as DemoMode,
-  /** Proxys de confiance pour X-Forwarded-For : local + réseaux privés (Docker). */
-  trustProxy: list('TRUST_PROXY').length ? list('TRUST_PROXY') : ['127.0.0.1', '::1', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'],
-  /** Requêtes /api/* par minute et par IP (les lots /lookup ont le quart). */
-  rateLimitPerMinute: int('RATE_LIMIT_PER_MINUTE', 120),
+  /**
+   * Proxys de confiance pour X-Forwarded-For. Vide ou « true » : local + réseaux privés (Docker),
+   * jamais « tout le monde », sinon n'importe qui choisirait son IP et contournerait le rate limit.
+   * « false » : SearchIT exposé directement. Sinon liste d'adresses/CIDR séparées par des virgules.
+   */
+  trustProxy: trustProxy(),
   searchTimeoutMs: int('SEARCH_TIMEOUT_MS', 8000),
   cacheTtlSeconds: int('CACHE_TTL_SECONDS', 600),
   feedRefreshMinutes: int('FEED_REFRESH_MINUTES', 360),
@@ -39,6 +48,14 @@ export const config = {
   customMerchantsFile: path.resolve(SERVER_ROOT, process.env.CUSTOM_MERCHANTS_FILE ?? 'config/custom-merchants.json'),
   publicStoresFile: path.resolve(SERVER_ROOT, process.env.PUBLIC_STORES_FILE ?? 'config/public-stores.json'),
   webDist: path.resolve(SERVER_ROOT, '../web/dist'),
+  /** Adresse publique du site (sitemap, liens absolus). */
+  publicUrl: (process.env.PUBLIC_URL ?? 'https://searchit.heiphaistos.org').replace(/\/+$/, ''),
+  /** Historique des prix (« off » pour désactiver). */
+  historyFile: process.env.HISTORY_FILE === 'off' ? null : path.resolve(SERVER_ROOT, process.env.HISTORY_FILE ?? '.cache/history.json'),
+  /** Recherches autorisées par minute et par IP (0 = illimité) ; le reste de /api/* a 4× ce quota. */
+  rateLimitPerMinute: Number.parseInt(process.env.RATE_LIMIT_PER_MINUTE ?? '', 10) >= 0 && process.env.RATE_LIMIT_PER_MINUTE ? Number.parseInt(process.env.RATE_LIMIT_PER_MINUTE, 10) : 60,
+  /** Jeton du tableau de bord /admin (vide = administration désactivée). */
+  adminToken: process.env.ADMIN_TOKEN?.trim() || null,
 };
 
 export function env(name: string): string | undefined {

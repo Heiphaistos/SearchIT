@@ -53,6 +53,15 @@ export function getCategory(id: CategoryId): Category {
   return byId.get(id) ?? byId.get('other')!;
 }
 
+/**
+ * Mots désignant la catégorie (libellé + premiers mots-clés), ajoutés à l'index et au
+ * score de pertinence : « nas synology » trouve « Synology DiskStation DS224+ ».
+ */
+export function categoryTerms(id: CategoryId): string {
+  const c = getCategory(id);
+  return id === 'other' ? '' : `${c.label} ${c.keywords.slice(0, 3).join(' ')}`;
+}
+
 export function isCategoryId(value: unknown): value is CategoryId {
   return typeof value === 'string' && byId.has(value as CategoryId);
 }

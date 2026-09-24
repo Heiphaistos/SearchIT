@@ -13,6 +13,18 @@ Production : **https://searchit.heiphaistos.org**
 - Filtres par état, catégorie, marchand, prix et stock. Les accessoires (coques, câbles…) sont masqués quand on cherche un appareil.
 - Navigation par catégorie (35 catégories, des processeurs aux onduleurs).
 - **Ma liste** : un panier de comparaison (par exemple tous les composants d'un PC). Il calcule le total optimal en achetant chez plusieurs marchands, et le total si tout est acheté chez un seul marchand.
+- **Catalogue de référence** (7 972 produits réels, 32 catégories, 188 marques) : caractéristiques techniques, génération et prix de lancement indicatif. Il alimente la page « Catalogue », la fiche technique immédiate des résultats, le comparateur, l'autocomplétion et le mode démo. Données dans `server/src/catalog/data/*.ts` ; API `/api/v1/catalog`.
+- **Suivis de prix** : prix cible par produit, revérification automatique et notification du navigateur quand la cible est atteinte (page « Suivis »).
+- **Bons plans** : les plus fortes baisses par rapport à la moyenne des 30 derniers jours, calculées uniquement sur des prix réellement relevés.
+- **Comparateur** : jusqu'à 4 produits côte à côte (prix neuf, reconditionné, occasion, prix au To, caractéristiques Icecat).
+- **Tableau de bord `/admin`** (jeton `ADMIN_TOKEN`) : recherches, recherches populaires, quotas Google Shopping, état des sources et dernières erreurs.
+- **Historique des prix** : mini-graphique et badge « prix le plus bas depuis N jours ». Seules les offres réelles sont enregistrées, jamais les prix de démo.
+- **Prix au To ou au Go** pour les SSD, disques durs, cartes mémoire et la RAM, avec un tri associé.
+- **Autocomplétion** : recherches populaires, titres de produits connus, catégories et recherches récentes.
+- **Ma liste** : lien de partage (sans compte ni stockage serveur), import d'une liste partagée et export CSV compatible Excel.
+- **Fiches techniques** (Open Icecat) et conversion automatique des devises (BCE).
+- **Sécurité** : limite de débit par IP (protège aussi les crédits Google Shopping), en-têtes CSP et HSTS, validation de toutes les entrées.
+- **Référencement et appli installable** : `sitemap.xml`, `robots.txt`, balises Open Graph, manifeste, recherche OpenSearch dans la barre d'adresse.
 - **API publique `/api/v1`**, prévue pour le configurateur de PC (voir plus bas).
 - Interface moderne en français, thème clair/sombre, adaptée au mobile.
 
@@ -135,7 +147,7 @@ curl -X POST https://searchit.heiphaistos.org/api/v1/lookup \
 
 - Spécification complète : `/api/v1/openapi.json`. Documentation lisible : page **API** du site.
 - Types TypeScript du contrat : `server/src/shared/types.ts` (`LookupRequest`, `LookupResponse`, `Offer`…).
-- Sécurité : définis `API_KEYS` pour exiger la clé (en-tête `x-api-key` ou `Authorization: Bearer <clé>`), et `CORS_ORIGINS` avec le domaine du configurateur. `/api/*` est limité à `RATE_LIMIT_PER_MINUTE` requêtes par minute et par IP (le quart pour les lots) ; l'IP réelle est lue dans `X-Forwarded-For` seulement si la requête vient d'un proxy de confiance (`TRUST_PROXY`, par défaut local + réseaux privés Docker).
+- Sécurité : définis `API_KEYS` pour exiger la clé (en-tête `x-api-key` ou `Authorization: Bearer <clé>`), et `CORS_ORIGINS` avec le domaine du configurateur. La recherche est limitée à `RATE_LIMIT_PER_MINUTE` requêtes par minute et par IP (le tiers pour les lots, 4 fois plus pour le reste de `/api/*`, clés d'API valides exemptées) ; l'IP réelle est lue dans `X-Forwarded-For` seulement si la requête vient d'un proxy de confiance (`TRUST_PROXY`, par défaut local + réseaux privés Docker).
 
 ### Contrat EnginePC
 
@@ -145,7 +157,7 @@ curl -X POST https://searchit.heiphaistos.org/api/v1/lookup \
 curl -X POST https://searchit.heiphaistos.org/api/v1/prices/lookup   -H 'content-type: application/json' -H 'Authorization: Bearer VOTRE_CLE'   -d '{"currency":"EUR","country":"FR","items":[{"id":"amd-ryzen-7-9800x3d","name":"AMD Ryzen 7 9800X3D","category":"cpu"}]}'
 ```
 
-Réponse : `{ results: [{ id, best, offers }], demo }` avec `Offer = { merchant, price, currency, url, inStock, shipping?, updatedAt?, demo? }`. Les catégories EnginePC (`cooler`, `phone`, `storage`…) sont converties, une catégorie inconnue est ignorée, 50 articles au plus, occasion exclue, produits introuvables omis. Les prix sont toujours en euros (`currency`/`country` sont indicatifs). `GET /api/v1/catalog` renvoie `{ components: [], devices: [] }` : SearchIT ne tient pas de catalogue de caractéristiques.
+Réponse : `{ results: [{ id, best, offers }], demo }` avec `Offer = { merchant, price, currency, url, inStock, shipping?, updatedAt?, demo? }`. Les catégories EnginePC (`cooler`, `phone`, `storage`…) sont converties, une catégorie inconnue est ignorée, 50 articles au plus, occasion exclue, produits introuvables omis. Les prix sont toujours en euros (`currency`/`country` sont indicatifs). `GET /api/v1/catalog` expose le catalogue de référence (voir plus haut).
 
 Liens entrants côté site : `/recherche?q=…&category=…&ean=…` ouvre la recherche, `/configuration?data=<base64url(JSON)>&source=enginepc` importe les composants d'une configuration dans « Ma liste » avec un bouton « Modifier dans EnginePC ».
 

@@ -77,6 +77,7 @@ export function createCatalogConnector(source: CatalogSource): Connector {
     enabled: source.enabled,
     warmup: ensureLoaded,
     describe: () => ({ ...source.details, offers: index.size, loadedAt, lastError }),
+    suggest: (prefix, limit) => index.suggestTitles(prefix, limit),
     async search(query: ConnectorQuery): Promise<Offer[]> {
       await ensureLoaded();
       // Catalogue indisponible : pas d'erreur à chaque recherche, l'état est visible sur la page « Marchands ».

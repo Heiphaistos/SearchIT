@@ -1,4 +1,5 @@
 import type { Offer } from '../shared/types.js';
+import { categoryTerms } from '../shared/categories.js';
 import { tokenize } from './normalize.js';
 
 /** Index plein texte en mémoire sur des offres (flux, catalogues de boutiques, démo). */
@@ -20,7 +21,7 @@ export class OfferIndex {
     this.tokens = new Map();
     this.gtins = new Map();
     offers.forEach((offer, i) => {
-      for (const t of new Set(tokenize(`${offer.title} ${offer.brand ?? ''} ${offer.mpn ?? ''}`))) {
+      for (const t of new Set(tokenize(`${offer.title} ${offer.brand ?? ''} ${offer.mpn ?? ''} ${categoryTerms(offer.category)}`))) {
         const list = this.tokens.get(t);
         if (list) list.push(i);
         else this.tokens.set(t, [i]);
@@ -51,6 +52,28 @@ export class OfferIndex {
       .filter((o) => o.category === category)
       .sort((a, b) => a.totalPrice - b.totalPrice)
       .slice(0, limit);
+  }
+
+  /** Titres distincts correspondant à une saisie partielle (le dernier mot est un préfixe). */
+  suggestTitles(prefix: string, limit: number): string[] {
+    const tokens = tokenize(prefix);
+    if (!tokens.length) return [];
+    const last = tokens[tokens.length - 1];
+    const full = tokens.slice(0, -1);
+    const lastSet = new Set<number>();
+    for (const [key, list] of this.tokens) if (key.startsWith(last)) for (const i of list) lastSet.add(i);
+    let result = lastSet;
+    for (const t of full) {
+      const s = this.postings(t);
+      result = new Set([...result].filter((i) => s.has(i)));
+    }
+    const titles = new Set<string>();
+    for (const i of result) {
+      titles.add(this.offers[i].title);
+      if (titles.size >= limit * 3) break;
+    }
+    // Les titres les plus courts sont les plus « génériques » : on les propose d'abord.
+    return [...titles].sort((a, b) => a.length - b.length).slice(0, limit);
   }
 
   search(q: string, limit: number, gtin?: string): Offer[] {

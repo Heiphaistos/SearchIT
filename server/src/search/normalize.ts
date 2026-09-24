@@ -49,9 +49,17 @@ export function tokenize(text: string): string[] {
   return out;
 }
 
+// Mots désignant le type de produit : absents de certains titres marchands
+// (« Carte graphique NVIDIA RTX 5070 » = « NVIDIA RTX 5070 »), donc ignorés pour le regroupement.
+const GENERIC_WORDS = new Set([
+  'carte', 'graphique', 'processeur', 'mere', 'memoire', 'vive', 'disque', 'dur', 'interne', 'ecran', 'moniteur', 'pc', 'ordinateur',
+  'telephone', 'smartphone', 'mobile', 'tablette', 'montre', 'connectee', 'serveur', 'alimentation', 'boitier', 'ventirad', 'casque',
+  'clavier', 'souris', 'gamer', 'gaming', 'console', 'nouveau', 'nouvelle', 'officiel', 'version', 'modele',
+]);
+
 /** Empreinte stable d'un titre pour regrouper les offres d'un même produit. */
 export function fingerprintTokens(title: string): string[] {
-  const tokens = tokenize(title).filter((t) => !CONDITION_WORDS.has(t) && !COLOR_WORDS.has(t) && !/^[abc]$/.test(t));
+  const tokens = tokenize(title).filter((t) => !CONDITION_WORDS.has(t) && !COLOR_WORDS.has(t) && !GENERIC_WORDS.has(t) && !/^[abc]$/.test(t));
   return [...new Set(tokens)].sort();
 }
 

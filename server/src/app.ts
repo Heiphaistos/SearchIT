@@ -1,21 +1,25 @@
 import { timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs';
+import path from 'node:path';
+import helmet from '@fastify/helmet';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { config } from './config.js';
+import { loadCatalog, toReference, type Catalog } from './catalog/index.js';
 import { getProductSheet } from './connectors/icecat.js';
 import { createRegistry, type Registry } from './connectors/registry.js';
 import { ContractError, parseEnginePcRequest, toEnginePcResponse } from './enginepc.js';
 import { openApiSpec } from './openapi.js';
 import { ratesInfo, refreshRates } from './search/currency.js';
 import { SearchEngine } from './search/engine.js';
+import { HistoryStore } from './search/history.js';
 import { CATEGORIES, CATEGORY_GROUPS, isCategoryId } from './shared/categories.js';
-import type { Condition, LookupItem, LookupRequest, SearchParams, SortKey } from './shared/types.js';
+import type { CatalogSort, CategoryId, Condition, LookupItem, LookupRequest, SearchParams, SortKey } from './shared/types.js';
 
 const CONDITIONS: Condition[] = ['new', 'refurbished', 'used'];
-const SORTS: SortKey[] = ['relevance', 'price-asc', 'price-desc', 'savings', 'offers'];
+const SORTS: SortKey[] = ['relevance', 'price-asc', 'price-desc', 'savings', 'offers', 'unit-price'];
 
 class BadRequest extends Error {}
 
@@ -98,21 +102,6 @@ export function parseLookupRequest(body: unknown): LookupRequest {
   };
 }
 
-// CSP du front Vite : scripts et styles servis par l'app (le style inline reste autorisé
-// pour les attributs style de React), images marchandes externes en HTTPS.
-const CSP = [
-  "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https:",
-  "font-src 'self' data:",
-  "connect-src 'self'",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-].join('; ');
-
 function safeEqual(a: string, b: string): boolean {
   const x = Buffer.from(a);
   const y = Buffer.from(b);
@@ -129,13 +118,20 @@ export function apiKeyFrom(headers: FastifyRequest['headers']): string | undefin
 
 export interface AppOptions {
   registry?: Registry;
+  catalog?: Catalog;
+  /** Fichier d'historique ; `null` pour un historique en mémoire (tests). */
+  historyFile?: string | null;
   logger?: boolean;
   serveWeb?: boolean;
 }
 
 export async function buildApp(options: AppOptions = {}): Promise<FastifyInstance> {
-  const registry = options.registry ?? createRegistry();
+  const catalog = options.catalog ?? (await loadCatalog());
+  const registry = options.registry ?? createRegistry(catalog);
+  const history = new HistoryStore(options.historyFile === undefined ? config.historyFile : options.historyFile);
   const engine = new SearchEngine(registry.connectors, {
+    history,
+    catalog,
     timeoutMs: config.searchTimeoutMs,
     cacheTtlMs: config.cacheTtlSeconds * 1000,
     merchantNames: new Map(registry.merchants.map((m) => [m.id, m.name])),
@@ -148,15 +144,51 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     trustProxy: config.trustProxy,
     bodyLimit: 256 * 1024,
   });
+
+  // En-têtes de sécurité. Les images viennent des marchands : toute origine HTTPS.
+  await app.register(helmet, {
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'", 'data:'],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+        manifestSrc: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  });
+
+  // Limite de débit par IP sur tout /api/* (protège aussi les crédits gratuits Google Shopping
+  // contre les robots) ; les routes qui interrogent les marchands ont un quota plus strict
+  // via `limited()`. Les clés d'API valides en sont exemptées, RATE_LIMIT_PER_MINUTE=0 désactive tout.
+  const rl = config.rateLimitPerMinute;
+  const hasValidKey = (req: FastifyRequest) => {
+    const key = apiKeyFrom(req.headers);
+    return !!key && config.apiKeys.some((k) => safeEqual(k, key));
+  };
   await app.register(rateLimit, {
-    max: config.rateLimitPerMinute,
+    max: Math.max(1, rl * 4),
     timeWindow: '1 minute',
-    allowList: (req) => !req.url.startsWith('/api/'),
-    errorResponseBuilder: (_req, ctx) => ({ statusCode: 429, error: `Trop de requêtes : réessayez dans ${Math.ceil(ctx.ttl / 1000)} s` }),
+    allowList: (req) => rl <= 0 || !req.url.startsWith('/api/') || hasValidKey(req),
+    errorResponseBuilder: (_req, ctx) => ({
+      statusCode: 429,
+      error: `Trop de requêtes : réessayez dans ${Math.ceil(ctx.ttl / 1000)} s.`,
+    }),
   });
-  app.addHook('onSend', async (req, reply) => {
-    if (!req.url.startsWith('/api/')) reply.header('content-security-policy', CSP);
-  });
+  const limited = (perMinute: number) =>
+    rl > 0 ? { config: { rateLimit: { max: Math.max(1, Math.round(perMinute)), timeWindow: '1 minute' } } } : {};
+
+  app.addHook('onClose', async () => history.flush());
+
   await app.register(cors, {
     origin: !config.corsOrigins.length || config.corsOrigins.includes('*') ? true : config.corsOrigins,
   });
@@ -181,6 +213,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     status: 'ok',
     demo: engine.isDemo(),
     sources: engine.activeConnectors().map((c) => c.id),
+    catalog: catalog.size,
     currencies: ratesInfo(),
   }));
 
@@ -194,8 +227,6 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     };
   });
 
-  // Lots jusqu'à 50 articles : limite plus stricte que le reste de l'API.
-  const heavy = { rateLimit: { max: Math.max(1, Math.ceil(config.rateLimitPerMinute / 4)), timeWindow: '1 minute' } };
   const searchHandler = async (req: FastifyRequest) => engine.search(parseSearchParams(req.query as Record<string, unknown>));
   const lookupHandler = async (req: FastifyRequest) => engine.lookup(parseLookupRequest(req.body));
 
@@ -209,35 +240,137 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
       return { found: false, source: 'Icecat' };
     }
   };
-  app.get('/api/product-sheet', sheetHandler);
-  app.get('/api/v1/product-sheet', { preHandler: requireKey }, sheetHandler);
+  app.get('/api/product-sheet', limited(rl), sheetHandler);
+  app.get('/api/v1/product-sheet', { preHandler: requireKey, ...limited(rl) }, sheetHandler);
 
-  app.get('/api/search', searchHandler);
-  app.post('/api/lookup', { config: heavy }, lookupHandler);
+  app.get('/api/search', limited(rl), searchHandler);
+  // Lots jusqu'à 50 articles : quota plus strict que la recherche.
+  app.post('/api/lookup', limited(rl / 3), lookupHandler);
+
+  app.get('/api/suggest', limited(rl * 4), async (req) => {
+    const q = String((req.query as Record<string, unknown>).q ?? '').slice(0, 80);
+    return engine.suggest(q);
+  });
+
+  // Suggestions au format OpenSearch (barre d'adresse du navigateur).
+  app.get('/api/opensearch-suggest', limited(rl * 4), async (req, reply) => {
+    const q = String((req.query as Record<string, unknown>).q ?? '').slice(0, 80);
+    reply.type('application/x-suggestions+json');
+    return [q, engine.suggest(q).queries];
+  });
+
+  // Bons plans : fortes baisses de prix réellement relevées.
+  app.get('/api/deals', async (req) => {
+    const q = req.query as Record<string, string | undefined>;
+    const category = q.category && isCategoryId(q.category) ? q.category : undefined;
+    return { deals: history.deals({ category, limit: Math.min(100, Number(q.limit) || 48) }), demo: engine.isDemo() };
+  });
+
+  // Tableau de bord d'administration (jeton ADMIN_TOKEN, comparaison à temps constant).
+  app.get('/api/admin/stats', limited(20), async (req, reply) => {
+    if (!config.adminToken) return reply.status(404).send({ error: 'Administration désactivée : définissez ADMIN_TOKEN dans .env' });
+    const given = Buffer.from(String(req.headers['x-admin-token'] ?? ''));
+    const expected = Buffer.from(config.adminToken);
+    if (given.length !== expected.length || !timingSafeEqual(given, expected)) return reply.status(401).send({ error: 'Jeton invalide' });
+    const mem = process.memoryUsage();
+    return {
+      now: new Date().toISOString(),
+      uptimeSeconds: Math.round(process.uptime()),
+      memoryMb: Math.round(mem.rss / 1_048_576),
+      node: process.version,
+      demo: engine.isDemo(),
+      engine: engine.stats(),
+      history: history.stats(),
+      currencies: ratesInfo(),
+      topQueries: history.topQueries(30),
+      sources: registry.connectors.map((c) => ({ id: c.id, merchantId: c.merchantId, enabled: c.enabled(), details: c.describe?.() ?? null })),
+    };
+  });
+
+  // Catalogue de référence : base de produits réels avec caractéristiques.
+  const catalogList = async (req: FastifyRequest) => {
+    const q = req.query as Record<string, string | undefined>;
+    if (q.category && !isCategoryId(q.category)) throw new BadRequest(`Catégorie inconnue : ${q.category}`);
+    const sort = (['recent', 'name', 'msrp-asc', 'msrp-desc'] as CatalogSort[]).includes(q.sort as CatalogSort) ? (q.sort as CatalogSort) : 'recent';
+    return catalog.list({
+      category: q.category as CategoryId | undefined,
+      q: q.q?.slice(0, 100),
+      brand: q.brand,
+      tag: q.tag,
+      sort,
+      page: Number(q.page) || 1,
+      pageSize: Number(q.pageSize) || 48,
+    });
+  };
+  const catalogItem = async (req: FastifyRequest, reply: FastifyReply) => {
+    const product = catalog.get((req.params as { id: string }).id);
+    if (!product) return reply.status(404).send({ error: 'Produit inconnu' });
+    return { product, reference: toReference(product), similar: catalog.similar(product) };
+  };
+  app.get('/api/catalog', limited(rl * 2), catalogList);
+  app.get('/api/catalog/stats', async () => catalog.stats());
+  app.get('/api/catalog/:id', limited(rl * 2), catalogItem);
+  app.get('/api/v1/catalog', { preHandler: requireKey, ...limited(rl * 2) }, catalogList);
+  app.get('/api/v1/catalog/:id', { preHandler: requireKey, ...limited(rl * 2) }, catalogItem);
+
+  app.get('/api/history/:key', async (req) => {
+    const { key } = req.params as { key: string };
+    return { key, points: history.points(key), summary: history.summary(key) ?? null };
+  });
 
   // API publique versionnée, pour le configurateur de PC et les intégrations.
-  app.get('/api/v1/search', { preHandler: requireKey }, searchHandler);
-  app.post('/api/v1/lookup', { preHandler: requireKey, config: heavy }, lookupHandler);
+  app.get('/api/v1/search', { preHandler: requireKey, ...limited(rl) }, searchHandler);
+  app.post('/api/v1/lookup', { preHandler: requireKey, ...limited(rl / 3) }, lookupHandler);
   app.get('/api/v1/merchants', { preHandler: requireKey }, async () => ({ merchants: registry.merchantInfo() }));
   app.get('/api/v1/openapi.json', async () => openApiSpec);
 
-  // Contrat du configurateur EnginePC.
-  app.post('/api/v1/prices/lookup', { preHandler: requireKey, config: heavy }, async (req) =>
+  // Contrat du configurateur EnginePC (le catalogue de caractéristiques est /api/v1/catalog ci-dessus).
+  app.post('/api/v1/prices/lookup', { preHandler: requireKey, ...limited(rl / 3) }, async (req) =>
     toEnginePcResponse(await engine.lookup(parseEnginePcRequest(req.body))),
   );
-  // SearchIT ne tient pas de catalogue de caractéristiques : EnginePC garde le sien.
-  app.get('/api/v1/catalog', { preHandler: requireKey }, async () => ({ components: [], devices: [] }));
 
   // Taux de change BCE + préchargement des catalogues en arrière-plan.
   void refreshRates();
   // Précharge les flux en arrière-plan pour que la première recherche soit rapide.
   for (const c of registry.connectors) if (c.enabled() && c.warmup) void c.warmup().catch(() => undefined);
 
+  // Référencement : robots.txt et plan du site (pages, catégories, recherches populaires).
+  app.get('/robots.txt', async (_req, reply) => {
+    reply.type('text/plain; charset=utf-8');
+    return `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin\nDisallow: /configuration\nDisallow: /liste\nSitemap: ${config.publicUrl}/sitemap.xml\n`;
+  });
+  app.get('/sitemap.xml', async (_req, reply) => {
+    const urls = [
+      '/',
+      '/bons-plans',
+      '/catalogue',
+      ...catalog.products.map((p) => `/catalogue/${p.id}`),
+      '/sources',
+      '/developpeurs',
+      ...CATEGORIES.filter((c) => c.id !== 'other').map((c) => `/recherche?category=${c.id}`),
+      ...history.popularQueries('', 200).map((q) => `/recherche?q=${encodeURIComponent(q)}`),
+    ];
+    const esc = (u: string) => u.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    reply.type('application/xml; charset=utf-8').header('cache-control', 'public, max-age=3600');
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls
+      .map((u) => `  <url><loc>${esc(config.publicUrl + u)}</loc></url>`)
+      .join('\n')}\n</urlset>\n`;
+  });
+
   if (options.serveWeb !== false && fs.existsSync(config.webDist)) {
-    await app.register(fastifyStatic, { root: config.webDist, wildcard: false });
+    await app.register(fastifyStatic, {
+      root: config.webDist,
+      wildcard: false,
+      // Fichiers versionnés par Vite : cache long ; le reste (index.html…) toujours revalidé.
+      setHeaders: (res, filePath) => {
+        res.header('cache-control', filePath.includes(`${path.sep}assets${path.sep}`) ? 'public, max-age=31536000, immutable' : 'no-cache');
+      },
+    });
     app.setNotFoundHandler((req, reply) => {
       if (req.url.startsWith('/api/')) return reply.status(404).send({ error: 'Route inconnue' });
-      return reply.sendFile('index.html');
+      // Fichier versionné disparu (ancien onglet après un déploiement) : vrai 404, pas la page HTML.
+      if (req.url.startsWith('/assets/')) return reply.status(404).type('text/plain').send('Not found');
+      return reply.header('cache-control', 'no-cache').sendFile('index.html');
     });
   }
 

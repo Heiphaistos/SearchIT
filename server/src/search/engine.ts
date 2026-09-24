@@ -1,5 +1,5 @@
 import type { Connector, ConnectorQuery } from '../connectors/types.js';
-import { ACCESSORY_CATEGORIES, DEVICE_CATEGORIES, getCategory } from '../shared/categories.js';
+import { ACCESSORY_CATEGORIES, CATEGORIES, DEVICE_CATEGORIES, categoryTerms, getCategory } from '../shared/categories.js';
 import type {
   CategoryId,
   Condition,
@@ -14,12 +14,16 @@ import type {
   SearchParams,
   SearchResponse,
   SourceStatus,
+  SuggestResponse,
 } from '../shared/types.js';
 import { TtlCache } from './cache.js';
-import { groupOffers, type ScoredOffer } from './group.js';
+import { cleanTitle, groupOffers, type ScoredOffer } from './group.js';
 import { detectCategory, normalizeGtin, normalizeText } from './normalize.js';
 import { refreshRates, toEur } from './currency.js';
+import type { Catalog } from '../catalog/index.js';
+import type { HistoryStore } from './history.js';
 import { round2 } from './offer.js';
+import { unitPriceFor } from './unit-price.js';
 import { MIN_RELEVANCE, extractConditionIntent, prepareQuery, relevance } from './relevance.js';
 
 const DEFAULT_LOOKUP_CONDITIONS: Condition[] = ['new', 'refurbished'];
@@ -30,6 +34,10 @@ export interface EngineOptions {
   timeoutMs: number;
   cacheTtlMs: number;
   merchantNames: Map<string, string>;
+  /** Historique des prix / recherches populaires (facultatif). */
+  history?: HistoryStore;
+  /** Catalogue de référence (caractéristiques, prix de lancement). */
+  catalog?: Catalog;
 }
 
 interface FetchResult {
@@ -37,8 +45,17 @@ interface FetchResult {
   sources: SourceStatus[];
 }
 
+export interface SourceError {
+  at: string;
+  connector: string;
+  status: SourceStatus['status'];
+  error: string;
+}
+
 export class SearchEngine {
   private cache: TtlCache<Offer[]>;
+  private counters = { searches: 0, lookups: 0, startedAt: new Date().toISOString() };
+  private errors: SourceError[] = [];
 
   constructor(private connectors: Connector[], private options: EngineOptions) {
     this.cache = new TtlCache(options.cacheTtlMs);
@@ -50,6 +67,11 @@ export class SearchEngine {
 
   isDemo(): boolean {
     return this.activeConnectors().some((c) => c.id === 'demo');
+  }
+
+  /** Compteurs et dernières erreurs des sources, pour le tableau de bord d'administration. */
+  stats(): { searches: number; lookups: number; startedAt: string; recentErrors: SourceError[] } {
+    return { ...this.counters, recentErrors: [...this.errors] };
   }
 
   clearCache(): void {
@@ -79,6 +101,13 @@ export class SearchEngine {
           return offers;
         } catch (err) {
           const timedOut = controller.signal.aborted;
+          this.errors.unshift({
+            at: new Date().toISOString(),
+            connector: connector.id,
+            status: timedOut ? 'timeout' : 'error',
+            error: timedOut ? 'délai dépassé' : err instanceof Error ? err.message : String(err),
+          });
+          this.errors.length = Math.min(this.errors.length, 50);
           sources.push({
             merchantId: connector.merchantId,
             connector: connector.id,
@@ -105,13 +134,14 @@ export class SearchEngine {
     return { offers: [...seen.values()], sources };
   }
 
-  async search(params: SearchParams): Promise<SearchResponse> {
+  async search(params: SearchParams, opts: { track?: boolean } = {}): Promise<SearchResponse> {
     const started = Date.now();
     // Sans mots-clés mais avec une catégorie : navigation dans la catégorie.
     const browse = !params.q.trim() && Boolean(params.category);
     const intent = extractConditionIntent(params.q);
     const q = browse ? (getCategory(params.category!).keywords[0] ?? getCategory(params.category!).label) : intent.query;
     const conditions = params.conditions?.length ? params.conditions : intent.conditions.length ? intent.conditions : undefined;
+    if (opts.track !== false) this.counters.searches++;
     let detectedCategory = params.category ?? detectCategory(params.q);
     const page = Math.max(1, params.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 24));
@@ -130,7 +160,7 @@ export class SearchEngine {
         if (offer.category === params.category) scored.push({ offer, relevance: 1 });
         continue;
       }
-      const score = relevance(prepared, offer.title, `${offer.brand ?? ''} ${offer.mpn ?? ''}`);
+      const score = relevance(prepared, offer.title, `${offer.brand ?? ''} ${offer.mpn ?? ''} ${categoryTerms(offer.category)}`);
       if (score >= MIN_RELEVANCE) scored.push({ offer, relevance: score });
     }
     detectedCategory ??= dominantCategory(scored);
@@ -154,7 +184,19 @@ export class SearchEngine {
       return true;
     });
 
-    const groups = sortGroups(groupOffers(filtered), params.sort ?? 'relevance');
+    const grouped = groupOffers(filtered);
+    const history = this.options.history;
+    if (history) {
+      // Les recherches ciblées enrichissent l'historique ; la navigation par catégorie aussi.
+      history.record(grouped);
+      if (!browse && grouped.length && opts.track !== false) history.recordQuery(params.q);
+    }
+    for (const g of grouped) {
+      g.unitPrice = unitPriceFor(g.category, g.title, g.bestOffer.totalPrice);
+      g.history = history?.summary(g.key);
+      g.reference = this.options.catalog?.reference(g.title, g.category);
+    }
+    const groups = sortGroups(grouped, params.sort ?? 'relevance');
     return {
       query: params.q,
       detectedCategory,
@@ -169,9 +211,32 @@ export class SearchEngine {
     };
   }
 
+  /** Autocomplétion : recherches populaires, titres de produits connus et catégories. */
+  suggest(prefix: string, limit = 8): SuggestResponse {
+    const p = normalizeText(prefix);
+    const categories = p.length < 2 ? [] : CATEGORIES.filter(
+      (c) => c.id !== 'other' && (normalizeText(c.label).startsWith(p) || c.keywords.some((k) => k.startsWith(p))),
+    ).slice(0, 3).map((c) => ({ id: c.id, label: c.label }));
+    const seen = new Set<string>();
+    const queries: string[] = [];
+    const add = (q: string) => {
+      const key = normalizeText(q);
+      if (!key || seen.has(key) || queries.length >= limit) return;
+      seen.add(key);
+      queries.push(q);
+    };
+    for (const q of this.options.history?.popularQueries(prefix, limit) ?? []) add(q);
+    if (p.length >= 2) for (const name of this.options.catalog?.suggest(prefix, limit) ?? []) add(name);
+    if (p.length >= 2) {
+      for (const c of this.activeConnectors()) for (const t of c.suggest?.(prefix, limit) ?? []) add(cleanTitle(t));
+    }
+    return { queries, categories };
+  }
+
   /** Recherche du meilleur prix pour une liste de composants (API du configurateur). */
   async lookup(request: LookupRequest): Promise<LookupResponse> {
     const started = Date.now();
+    this.counters.lookups++;
     const alternatives = Math.min(20, Math.max(0, request.alternatives ?? 3));
     const items = request.items.slice(0, 50);
     const results: LookupResult[] = [];
@@ -231,7 +296,7 @@ export class SearchEngine {
       inStockOnly: true,
       sort: 'relevance',
       pageSize: 10,
-    });
+    }, { track: false });
     const byRelevance = [...response.groups].sort((a, b) => b.relevance - a.relevance || a.bestOffer.totalPrice - b.bestOffer.totalPrice);
     const group = (gtin && response.groups.find((g) => g.gtin === gtin)) || byRelevance[0];
     if (!group) {
@@ -274,6 +339,9 @@ function sortGroups(groups: ProductGroup[], sort: NonNullable<SearchParams['sort
       return groups.sort((a, b) => b.savingsPercent - a.savingsPercent || byPrice(a, b));
     case 'offers':
       return groups.sort((a, b) => b.offers.length - a.offers.length || byPrice(a, b));
+    case 'unit-price':
+      // Produits sans prix unitaire (capacité inconnue) en fin de liste.
+      return groups.sort((a, b) => (a.unitPrice?.value ?? Infinity) - (b.unitPrice?.value ?? Infinity) || byPrice(a, b));
     default:
       // Pertinence d'abord ; à pertinence quasi égale, les produits les plus proposés puis les moins chers.
       return groups.sort((a, b) => {

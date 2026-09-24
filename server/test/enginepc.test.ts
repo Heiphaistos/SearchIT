@@ -9,7 +9,7 @@ import { fromExternalCategory } from '../src/shared/categories.js';
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  app = await buildApp({ serveWeb: false });
+  app = await buildApp({ serveWeb: false, historyFile: null });
 });
 
 afterAll(async () => {
@@ -80,8 +80,9 @@ describe('POST /api/v1/prices/lookup (EnginePC)', () => {
     expect((await app.inject({ url: '/api/v1/search?q=ssd', headers: { authorization: 'Bearer secret-test' } })).statusCode).toBe(200);
   });
 
-  it('expose un catalogue vide (SearchIT ne tient pas de fiches de specs)', async () => {
-    expect((await app.inject({ url: '/api/v1/catalog' })).json()).toEqual({ components: [], devices: [] });
+  it('expose le catalogue de référence sur /api/v1/catalog', async () => {
+    const body = (await app.inject({ url: '/api/v1/catalog?category=cpu&pageSize=2' })).json();
+    expect(body.products.length).toBeGreaterThan(0);
   });
 });
 
@@ -99,16 +100,22 @@ describe('catégories EnginePC', () => {
 
 describe('sécurité HTTP', () => {
   it('limite le débit sur /api par IP réelle (X-Forwarded-For du proxy local)', async () => {
-    const limited = await buildApp({ serveWeb: false });
-    const max = config.rateLimitPerMinute;
-    let last = 0;
-    for (let i = 0; i <= max; i++) {
-      // 127.0.0.1 est un proxy de confiance : chaque IP transmise a son propre compteur.
-      last = (await limited.inject({ url: '/api/health', headers: { 'x-forwarded-for': '203.0.113.7' } })).statusCode;
+    // Les tests désactivent la limite (vitest.config.ts) : on la réactive le temps de ce test.
+    const previous = config.rateLimitPerMinute;
+    config.rateLimitPerMinute = 3;
+    const limited = await buildApp({ serveWeb: false, historyFile: null });
+    try {
+      let last = 0;
+      for (let i = 0; i <= 3; i++) {
+        // 127.0.0.1 est un proxy de confiance : chaque IP transmise a son propre compteur.
+        last = (await limited.inject({ url: '/api/search?q=ssd', headers: { 'x-forwarded-for': '203.0.113.7' } })).statusCode;
+      }
+      expect(last).toBe(429);
+      expect((await limited.inject({ url: '/api/search?q=ssd', headers: { 'x-forwarded-for': '203.0.113.8' } })).statusCode).toBe(200);
+    } finally {
+      config.rateLimitPerMinute = previous;
+      await limited.close();
     }
-    expect(last).toBe(429);
-    expect((await limited.inject({ url: '/api/health', headers: { 'x-forwarded-for': '203.0.113.8' } })).statusCode).toBe(200);
-    await limited.close();
   });
 
   it('refuse les corps trop volumineux', async () => {

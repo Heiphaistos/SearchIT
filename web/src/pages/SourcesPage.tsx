@@ -50,7 +50,7 @@ export function SourcesPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-      <h1 className="text-2xl font-bold tracking-tight">Marchands &amp; sources de prix</h1>
+      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Marchands &amp; sources de prix</h1>
       <p className="mt-2 max-w-3xl text-slate-600 dark:text-slate-400">
         SearchIT se branche sur les <strong>API officielles</strong> (Amazon, eBay, AliExpress) et sur les <strong>flux produits d’affiliation</strong> fournis par
         les enseignes (Fnac, LDLC, Leclerc, Back Market, Cdiscount…) via Awin, Effinity, Kwanko ou leur propre programme. Chaque source s’active en
@@ -69,7 +69,7 @@ export function SourcesPage() {
               href={src.url}
               target="_blank"
               rel="noopener noreferrer"
-              className={`card flex flex-col p-4 transition hover:-translate-y-0.5 hover:shadow-md ${src.highlight ? 'ring-2 ring-brand-500/60' : ''}`}
+              className={`card card-hover flex min-w-0 flex-col p-4 ${src.highlight ? 'ring-2 ring-brand-500/60' : ''}`}
             >
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-semibold leading-snug">{src.name}</h3>

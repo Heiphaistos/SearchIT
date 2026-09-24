@@ -1,7 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /api/
-Disallow: /configuration
-Disallow: /liste
-
-Sitemap: https://searchit.heiphaistos.org/sitemap.xml

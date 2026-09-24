@@ -40,7 +40,7 @@ export function DevelopersPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <h1 className="text-2xl font-bold tracking-tight">API SearchIT</h1>
+      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">API SearchIT</h1>
       <p className="mt-2 text-slate-600 dark:text-slate-400">
         L’API publique <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">/api/v1</code> permet à d’autres applications (en particulier le
         configurateur de PC) d’obtenir les meilleurs prix. Spécification complète :{' '}
@@ -126,8 +126,8 @@ export function DevelopersPage() {
   ]
 }`}</Code>
         <p>
-          <code>GET /api/v1/catalog</code> renvoie <code>{'{ "components": [], "devices": [] }'}</code> : SearchIT compare les prix mais ne tient pas de
-          catalogue de caractéristiques, EnginePC garde le sien. Liens entrants côté site : <code>/recherche?q=…&amp;category=…&amp;ean=…</code> et{' '}
+          <code>GET /api/v1/catalog</code> (et <code>/api/v1/catalog/:id</code>) expose le catalogue de référence SearchIT : produits réels,
+          caractéristiques et prix de lancement indicatif. Liens entrants côté site : <code>/recherche?q=…&amp;category=…&amp;ean=…</code> et{' '}
           <code>/configuration?data=&lt;base64url(JSON)&gt;&amp;source=enginepc</code> (import dans « Ma liste »).
         </p>
       </Section>

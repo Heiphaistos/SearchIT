@@ -24,6 +24,8 @@ export interface Connector {
   search(query: ConnectorQuery, signal: AbortSignal): Promise<Offer[]>;
   /** Préchargement (ex. téléchargement d'un flux). Optionnel. */
   warmup?(): Promise<void>;
+  /** Titres de produits commençant par / contenant `prefix`, pour l'autocomplétion. */
+  suggest?(prefix: string, limit: number): string[];
   /** Informations de diagnostic affichées sur la page « Sources ». */
   describe?(): Record<string, unknown>;
 }

@@ -110,7 +110,7 @@ export const openApiSpec = {
           { name: 'maxPrice', in: 'query', schema: { type: 'number' } },
           { name: 'inStock', in: 'query', schema: { type: 'boolean' } },
           { name: 'hideAccessories', in: 'query', schema: { type: 'boolean', default: true } },
-          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['relevance', 'price-asc', 'price-desc', 'savings', 'offers'] } },
+          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['relevance', 'price-asc', 'price-desc', 'savings', 'offers', 'unit-price'] } },
           { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
           { name: 'pageSize', in: 'query', schema: { type: 'integer', default: 24, maximum: 100 } },
         ],
@@ -241,8 +241,35 @@ export const openApiSpec = {
     },
     '/catalog': {
       get: {
-        summary: 'Catalogue de caractéristiques : toujours vide, SearchIT ne compare que les prix',
-        responses: { 200: { description: '{ components: [], devices: [] }' } },
+        summary: 'Catalogue de référence : produits réels avec caractéristiques et prix de lancement indicatif',
+        parameters: [
+          { name: 'category', in: 'query', schema: { type: 'string' } },
+          { name: 'q', in: 'query', schema: { type: 'string' } },
+          { name: 'brand', in: 'query', schema: { type: 'string' } },
+          { name: 'tag', in: 'query', schema: { type: 'string' } },
+          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['recent', 'name', 'msrp-asc', 'msrp-desc'], default: 'recent' } },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'pageSize', in: 'query', schema: { type: 'integer', default: 48 } },
+        ],
+        responses: { 200: { description: 'Page de produits du catalogue' }, 400: { description: 'Catégorie inconnue' } },
+      },
+    },
+    '/catalog/{id}': {
+      get: {
+        summary: 'Fiche d’un produit du catalogue, avec produits similaires',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Produit, référence et produits similaires' }, 404: { description: 'Produit inconnu' } },
+      },
+    },
+    '/product-sheet': {
+      get: {
+        summary: 'Fiche technique (Open Icecat) par EAN ou marque + référence fabricant',
+        parameters: [
+          { name: 'gtin', in: 'query', schema: { type: 'string' } },
+          { name: 'brand', in: 'query', schema: { type: 'string' } },
+          { name: 'mpn', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: { 200: { description: 'Fiche (found=false si inconnue)' } },
       },
     },
     '/merchants': { get: { summary: 'Marchands et état de leurs connecteurs', responses: { 200: { description: 'Liste des marchands' } } } },
