@@ -47,8 +47,9 @@ export function DemoBanner() {
     <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
       <Info className="mt-0.5 size-4 shrink-0" />
       <p>
-        <strong>Mode démonstration :</strong> aucune source marchande n’est encore connectée. Les produits sont réels mais les <strong>prix sont fictifs</strong>, et
-        les liens ouvrent la recherche du marchand. <Link to="/sources" className="font-medium underline underline-offset-2">Connecter les marchands</Link>
+        <strong>Mode démonstration :</strong> aucune grande source de prix n’est encore connectée. Les offres marquées « Démo » concernent de vrais produits
+        mais ont des <strong>prix fictifs</strong>, et leurs liens ouvrent la recherche du marchand.{' '}
+        <Link to="/sources" className="font-medium underline underline-offset-2">Connecter les sources gratuites</Link>
       </p>
     </div>
   );

@@ -18,6 +18,7 @@ import type {
 import { TtlCache } from './cache.js';
 import { groupOffers, type ScoredOffer } from './group.js';
 import { detectCategory, normalizeGtin, normalizeText } from './normalize.js';
+import { refreshRates, toEur } from './currency.js';
 import { round2 } from './offer.js';
 import { MIN_RELEVANCE, extractConditionIntent, prepareQuery, relevance } from './relevance.js';
 
@@ -56,7 +57,9 @@ export class SearchEngine {
   }
 
   private async fetchAll(query: ConnectorQuery, merchants?: string[]): Promise<FetchResult> {
-    const connectors = this.activeConnectors().filter((c) => c.merchantId === 'demo' || !merchants?.length || merchants.includes(c.merchantId));
+    // Les sources multi-marchands (démo, Google Shopping) sont toujours interrogées ;
+    // le filtre marchand s'applique ensuite offre par offre.
+    const connectors = this.activeConnectors().filter((c) => c.aggregator || c.merchantId === 'demo' || !merchants?.length || merchants.includes(c.merchantId));
     const sources: SourceStatus[] = [];
     const results = await Promise.all(
       connectors.map(async (connector): Promise<Offer[]> => {
@@ -91,8 +94,14 @@ export class SearchEngine {
       }),
     );
     // Dédoublonnage des offres (même id) provenant de plusieurs sources.
+    const all = results.flat();
+    // Les prix en devises étrangères sont convertis en euros (taux BCE).
+    if (all.some((o) => o.currency !== 'EUR')) await refreshRates();
     const seen = new Map<string, Offer>();
-    for (const offer of results.flat()) if (!seen.has(offer.id)) seen.set(offer.id, offer);
+    for (const raw of all) {
+      const offer = toEur(raw);
+      if (offer && !seen.has(offer.id)) seen.set(offer.id, offer);
+    }
     return { offers: [...seen.values()], sources };
   }
 
@@ -274,7 +283,10 @@ function sortGroups(groups: ProductGroup[], sort: NonNullable<SearchParams['sort
   }
 }
 
-function buildFacets(offers: Offer[], merchantNames: Map<string, string>): SearchResponse['facets'] {
+function buildFacets(offers: Offer[], knownNames: Map<string, string>): SearchResponse['facets'] {
+  // Les marchands découverts via Google Shopping n'ont pas de définition : on prend le nom de l'offre.
+  const merchantNames = new Map(knownNames);
+  for (const o of offers) if (!merchantNames.has(o.merchantId)) merchantNames.set(o.merchantId, o.merchantName);
   const count = <K extends string>(key: (o: Offer) => K) => {
     const m = new Map<K, number>();
     for (const o of offers) m.set(key(o), (m.get(key(o)) ?? 0) + 1);

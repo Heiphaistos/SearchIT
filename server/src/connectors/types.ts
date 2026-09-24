@@ -18,6 +18,8 @@ export interface Connector {
   id: string;
   /** Marchand principal couvert (« demo » pour le catalogue de démonstration). */
   merchantId: string;
+  /** Source multi-marchands (Google Shopping…) : interrogée quel que soit le filtre marchand. */
+  aggregator?: boolean;
   enabled(): boolean;
   search(query: ConnectorQuery, signal: AbortSignal): Promise<Offer[]>;
   /** Préchargement (ex. téléchargement d'un flux). Optionnel. */

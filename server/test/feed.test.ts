@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { detectFormat, OfferIndex, parseFeed, recordToOffer } from '../src/connectors/feed.js';
+import { detectFormat, parseFeed, recordToOffer } from '../src/connectors/feed.js';
+import { OfferIndex } from '../src/search/index.js';
 import type { MerchantDefinition } from '../src/merchants.js';
 import type { Offer } from '../src/shared/types.js';
 

@@ -1,0 +1,27 @@
+[
+  {
+    "name": "Nothing (boutique officielle)",
+    "kind": "shopify",
+    "storeUrl": "https://nothing.tech",
+    "notes": "Smartphones, écouteurs et accessoires Nothing / CMF. Catalogue Shopify public."
+  },
+  {
+    "name": "Fairphone (boutique officielle)",
+    "kind": "shopify",
+    "storeUrl": "https://shop.fairphone.com",
+    "refurbished": true,
+    "notes": "Smartphones Fairphone neufs et reconditionnés, pièces détachées. Catalogue Shopify public."
+  },
+  {
+    "name": "UGREEN Europe",
+    "kind": "shopify",
+    "storeUrl": "https://eu.ugreen.com",
+    "notes": "Chargeurs GaN, câbles, hubs USB-C, NAS. Catalogue Shopify public."
+  },
+  {
+    "name": "Ledger",
+    "kind": "shopify",
+    "storeUrl": "https://shop.ledger.com",
+    "notes": "Portefeuilles matériels. Catalogue Shopify public."
+  }
+]

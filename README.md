@@ -16,6 +16,28 @@ Production : **https://searchit.heiphaistos.org**
 - **API publique `/api/v1`**, prévue pour le configurateur de PC (voir plus bas).
 - Interface moderne en français, thème clair/sombre, adaptée au mobile.
 
+## Sources gratuites
+
+| Source | Clé | Coût | Ce que ça apporte |
+| --- | --- | --- | --- |
+| **Google Shopping** via [Serper.dev](https://serper.dev), [SearchApi.io](https://www.searchapi.io) ou [SerpApi](https://serpapi.com) | `SERPER_API_KEY` (ou `SEARCHAPI_API_KEY` / `SERPAPI_API_KEY`) | 2 500 requêtes offertes chez Serper | Prix de **centaines de marchands français** en une requête : Fnac, LDLC, Boulanger, Darty, Back Market, Leclerc, Cdiscount… C'est la source n°1 à activer. |
+| [eBay Browse API](https://developer.ebay.com) | `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET` | Gratuit (5 000 appels/jour) | Neuf, reconditionné et occasion |
+| [AliExpress Affiliate](https://portals.aliexpress.com) | `ALIEXPRESS_*` | Gratuit | Accessoires, câbles, chargeurs |
+| Boutiques **Shopify / WooCommerce** | aucune | Gratuit | Catalogue public complet de chaque boutique (`SHOPIFY_STORES`, `WOOCOMMERCE_STORES`, `server/config/public-stores.json`) |
+| [Open Icecat](https://icecat.biz) | aucune (`ICECAT_USERNAME` facultatif) | Gratuit | Fiches techniques et photos par EAN (bouton « Fiche technique ») |
+| [Taux BCE](https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.fr.html) | aucune | Gratuit | Conversion automatique en euros des prix en $ ou £ |
+
+Les résultats Google Shopping sont mis en cache 24 h sur disque, et un quota journalier par fournisseur protège les crédits gratuits.
+
+Ajouter une boutique Shopify ou WooCommerce :
+
+```bash
+SHOPIFY_STORES=nothing.tech|Nothing,boutique-recond.fr|Boutique Recond|refurb
+WOOCOMMERCE_STORES=exemple-informatique.fr|Exemple Informatique
+```
+
+Le catalogue est lu via `/products.json` (Shopify) ou `/wp-json/wc/store/v1/products` (WooCommerce). Les produits non high-tech sont filtrés, et le catalogue est resynchronisé toutes les `FEED_REFRESH_MINUTES` minutes.
+
 ## Marchands et sources
 
 | Type | Marchands | Variables |

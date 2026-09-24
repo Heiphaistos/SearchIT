@@ -24,6 +24,7 @@ export interface OfferInput {
   reviewCount?: number;
   seller?: string;
   isDemo?: boolean;
+  via?: string;
   updatedAt?: string;
 }
 
@@ -55,6 +56,7 @@ export function makeOffer(input: OfferInput): Offer {
     reviewCount: input.reviewCount,
     seller: input.seller || undefined,
     isDemo: input.isDemo || undefined,
+    via: input.via,
     updatedAt: input.updatedAt ?? new Date().toISOString(),
   };
 }

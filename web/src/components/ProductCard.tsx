@@ -1,10 +1,11 @@
 import { getCategory } from '@shared/categories';
 import type { Condition, Offer, ProductGroup } from '@shared/types';
-import { Check, ChevronDown, ExternalLink, ListPlus, Star, Store, TrendingDown } from 'lucide-react';
-import { useState } from 'react';
+import { Check, ChevronDown, ExternalLink, FileText, ListPlus, Star, Store, TrendingDown } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { CONDITION_META, formatPrice, formatShipping, plural } from '../lib/format';
 import { addGroupToList, listStore } from '../lib/list';
 import { CategoryIcon } from './CategoryIcon';
+import { ProductSheetPanel } from './ProductSheet';
 import { ConditionBadge } from './ui';
 
 function ProductImage({ group }: { group: ProductGroup }) {
@@ -68,7 +69,9 @@ export function OffersTable({ offers, bestId }: { offers: Offer[]; bestId: strin
                   <Store className="size-3.5 text-slate-400" />
                   {o.merchantName}
                   {o.id === bestId && <span className="chip bg-emerald-600 text-white">Meilleur prix</span>}
+                  {o.isDemo && <span className="chip bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300" title="Prix fictif (catalogue de démonstration)">Démo</span>}
                 </div>
+                {o.via === 'google-shopping' && <div className="text-xs text-slate-400">via Google Shopping</div>}
                 {o.seller && o.seller !== o.merchantName && <div className="text-xs text-slate-500">Vendeur : {o.seller}</div>}
                 {o.rating !== undefined && (
                   <div className="flex items-center gap-1 text-xs text-slate-500">
@@ -90,6 +93,11 @@ export function OffersTable({ offers, bestId }: { offers: Offer[]; bestId: strin
                 <div className="text-xs text-slate-500">
                   {formatPrice(o.price, o.currency)} · {formatShipping(o.shipping)}
                 </div>
+                {o.originalCurrency && o.originalPrice !== undefined && (
+                  <div className="text-xs text-slate-400" title="Converti au taux de référence de la BCE">
+                    soit {formatPrice(o.originalPrice, o.originalCurrency)}
+                  </div>
+                )}
               </td>
               <td className="px-3 py-2.5 text-right">
                 <a href={o.url} target="_blank" rel="nofollow sponsored noopener noreferrer" className="btn-outline px-3 py-1.5 text-xs">
@@ -104,8 +112,31 @@ export function OffersTable({ offers, bestId }: { offers: Offer[]; bestId: strin
   );
 }
 
+function PanelButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-expanded={active}
+      className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition hover:bg-slate-50 dark:hover:bg-slate-800/50 [&+&]:border-l [&+&]:border-slate-100 dark:[&+&]:border-slate-800 ${
+        active ? 'text-brand-700 dark:text-brand-300' : 'text-brand-600 dark:text-brand-400'
+      }`}
+    >
+      {children}
+      <ChevronDown className={`size-4 transition ${active ? 'rotate-180' : ''}`} />
+    </button>
+  );
+}
+
+function sheetQueryFor(group: ProductGroup): string | null {
+  if (group.gtin) return `gtin=${group.gtin}`;
+  const withMpn = group.offers.find((o) => o.mpn && (o.brand || group.brand));
+  if (withMpn) return new URLSearchParams({ brand: (withMpn.brand ?? group.brand)!, mpn: withMpn.mpn! }).toString();
+  return null;
+}
+
 export function ProductCard({ group }: { group: ProductGroup }) {
-  const [open, setOpen] = useState(false);
+  const [panel, setPanel] = useState<'offers' | 'sheet' | null>(null);
+  const sheetQuery = sheetQueryFor(group);
   const inList = listStore.use().some((i) => i.ref === group.key);
   const best = group.bestOffer;
 
@@ -142,7 +173,9 @@ export function ProductCard({ group }: { group: ProductGroup }) {
 
         <div className="flex shrink-0 flex-row items-end justify-between gap-3 sm:w-48 sm:flex-col sm:items-end">
           <div className="sm:text-right">
-            <div className="text-xs text-slate-500 dark:text-slate-400">Meilleur prix</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              Meilleur prix{best.isDemo && <span className="ml-1 font-medium text-amber-600 dark:text-amber-400">· fictif (démo)</span>}
+            </div>
             <div className="text-2xl font-bold tabular-nums tracking-tight">{formatPrice(best.totalPrice, best.currency)}</div>
             <div className="text-xs text-slate-500 dark:text-slate-400">
               chez <span className="font-medium text-slate-700 dark:text-slate-200">{best.merchantName}</span> · {CONDITION_META[best.condition].label.toLowerCase()}
@@ -164,19 +197,28 @@ export function ProductCard({ group }: { group: ProductGroup }) {
         </div>
       </div>
 
-      {group.offers.length > 1 && (
+      {(group.offers.length > 1 || sheetQuery) && (
         <>
-          <button
-            onClick={() => setOpen((o) => !o)}
-            aria-expanded={open}
-            className="flex w-full items-center justify-center gap-1.5 border-t border-slate-100 py-2.5 text-sm font-medium text-brand-600 transition hover:bg-slate-50 dark:border-slate-800 dark:text-brand-400 dark:hover:bg-slate-800/50"
-          >
-            {open ? 'Masquer les offres' : `Comparer les ${group.offers.length} offres`}
-            <ChevronDown className={`size-4 transition ${open ? 'rotate-180' : ''}`} />
-          </button>
-          {open && (
+          <div className="flex border-t border-slate-100 dark:border-slate-800">
+            {group.offers.length > 1 && (
+              <PanelButton active={panel === 'offers'} onClick={() => setPanel((p) => (p === 'offers' ? null : 'offers'))}>
+                {panel === 'offers' ? 'Masquer les offres' : `Comparer les ${group.offers.length} offres`}
+              </PanelButton>
+            )}
+            {sheetQuery && (
+              <PanelButton active={panel === 'sheet'} onClick={() => setPanel((p) => (p === 'sheet' ? null : 'sheet'))}>
+                <FileText className="size-4" /> Fiche technique
+              </PanelButton>
+            )}
+          </div>
+          {panel === 'offers' && (
             <div className="border-t border-slate-100 px-1 pb-2 dark:border-slate-800 sm:px-3">
               <OffersTable offers={group.offers} bestId={best.id} />
+            </div>
+          )}
+          {panel === 'sheet' && sheetQuery && (
+            <div className="border-t border-slate-100 p-4 dark:border-slate-800 sm:p-5">
+              <ProductSheetPanel query={sheetQuery} />
             </div>
           )}
         </>

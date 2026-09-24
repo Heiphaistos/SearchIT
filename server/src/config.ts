@@ -33,6 +33,7 @@ export const config = {
   feedRefreshMinutes: int('FEED_REFRESH_MINUTES', 360),
   cacheDir: path.resolve(SERVER_ROOT, process.env.CACHE_DIR ?? '.cache'),
   customMerchantsFile: path.resolve(SERVER_ROOT, process.env.CUSTOM_MERCHANTS_FILE ?? 'config/custom-merchants.json'),
+  publicStoresFile: path.resolve(SERVER_ROOT, process.env.PUBLIC_STORES_FILE ?? 'config/public-stores.json'),
   webDist: path.resolve(SERVER_ROOT, '../web/dist'),
 };
 

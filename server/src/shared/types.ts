@@ -49,7 +49,7 @@ export interface Category {
   keywords: string[];
 }
 
-export type ConnectionType = 'api' | 'affiliate-feed' | 'demo';
+export type ConnectionType = 'api' | 'affiliate-feed' | 'public-store' | 'aggregator' | 'demo';
 
 export interface MerchantInfo {
   id: string;
@@ -93,6 +93,11 @@ export interface Offer {
   seller?: string;
   /** Vrai si l'offre provient du catalogue de démonstration (prix fictifs). */
   isDemo?: boolean;
+  /** Devise et prix d'origine quand le prix a été converti en euros (taux BCE). */
+  originalCurrency?: string;
+  originalPrice?: number;
+  /** Source agrégée d'où provient l'offre (ex. « google-shopping »). */
+  via?: string;
   updatedAt: string;
 }
 

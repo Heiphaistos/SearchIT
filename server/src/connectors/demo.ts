@@ -3,7 +3,7 @@ import { getMerchantDefinitions, searchUrlFor, type MerchantDefinition } from '.
 import { makeOffer, round2 } from '../search/offer.js';
 import type { CategoryId, Offer } from '../shared/types.js';
 import { DEMO_CATALOG } from './demo-catalog.js';
-import { OfferIndex } from './feed.js';
+import { OfferIndex } from '../search/index.js';
 import type { Connector, ConnectorQuery } from './types.js';
 
 // Génère un catalogue d'offres DÉTERMINISTE et FICTIF à partir de DEMO_CATALOG.

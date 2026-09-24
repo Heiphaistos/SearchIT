@@ -3,8 +3,10 @@ import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { config } from './config.js';
+import { getProductSheet } from './connectors/icecat.js';
 import { createRegistry, type Registry } from './connectors/registry.js';
 import { openApiSpec } from './openapi.js';
+import { ratesInfo, refreshRates } from './search/currency.js';
 import { SearchEngine } from './search/engine.js';
 import { CATEGORIES, CATEGORY_GROUPS, isCategoryId } from './shared/categories.js';
 import type { Condition, LookupItem, LookupRequest, SearchParams, SortKey } from './shared/types.js';
@@ -128,7 +130,12 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     }
   };
 
-  app.get('/api/health', async () => ({ status: 'ok', demo: engine.isDemo(), sources: engine.activeConnectors().map((c) => c.id) }));
+  app.get('/api/health', async () => ({
+    status: 'ok',
+    demo: engine.isDemo(),
+    sources: engine.activeConnectors().map((c) => c.id),
+    currencies: ratesInfo(),
+  }));
 
   app.get('/api/categories', async () => ({ groups: CATEGORY_GROUPS, categories: CATEGORIES.map(({ keywords: _k, ...c }) => c) }));
 
@@ -143,6 +150,19 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   const searchHandler = async (req: FastifyRequest) => engine.search(parseSearchParams(req.query as Record<string, unknown>));
   const lookupHandler = async (req: FastifyRequest) => engine.lookup(parseLookupRequest(req.body));
 
+  // Fiche technique (Open Icecat) par EAN ou marque + référence fabricant.
+  const sheetHandler = async (req: FastifyRequest) => {
+    const q = req.query as Record<string, string | undefined>;
+    if (!q.gtin && !(q.brand && q.mpn)) throw new BadRequest('« gtin » ou « brand » + « mpn » requis');
+    try {
+      return await getProductSheet({ gtin: q.gtin, brand: q.brand, mpn: q.mpn, lang: q.lang });
+    } catch {
+      return { found: false, source: 'Icecat' };
+    }
+  };
+  app.get('/api/product-sheet', sheetHandler);
+  app.get('/api/v1/product-sheet', { preHandler: requireKey }, sheetHandler);
+
   app.get('/api/search', searchHandler);
   app.post('/api/lookup', lookupHandler);
 
@@ -152,6 +172,8 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   app.get('/api/v1/merchants', { preHandler: requireKey }, async () => ({ merchants: registry.merchantInfo() }));
   app.get('/api/v1/openapi.json', async () => openApiSpec);
 
+  // Taux de change BCE + préchargement des catalogues en arrière-plan.
+  void refreshRates();
   // Précharge les flux en arrière-plan pour que la première recherche soit rapide.
   for (const c of registry.connectors) if (c.enabled() && c.warmup) void c.warmup().catch(() => undefined);
 

@@ -4,12 +4,13 @@ import { gunzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { parse as parseCsv } from 'csv-parse/sync';
 import { XMLParser } from 'fast-xml-parser';
-import { config, env } from '../config.js';
+import { env } from '../config.js';
 import type { MerchantDefinition } from '../merchants.js';
-import { detectCategory, normalizeText, parseBoolean, parseCondition, parsePrice, tokenize } from '../search/normalize.js';
+import { detectCategory, normalizeText, parseBoolean, parseCondition, parsePrice } from '../search/normalize.js';
 import { makeOffer } from '../search/offer.js';
 import type { Offer } from '../shared/types.js';
-import type { Connector, ConnectorQuery } from './types.js';
+import { createCatalogConnector } from './catalog.js';
+import type { Connector } from './types.js';
 
 // Connecteur générique pour flux produits d'affiliation :
 // - CSV Awin / Effinity / Kwanko / Kelkoo (séparateur détecté automatiquement)
@@ -194,148 +195,20 @@ async function readSource(source: string, signal?: AbortSignal): Promise<string>
   return buffer.toString('utf8');
 }
 
-// ---------- Index de recherche ----------
-
-export class OfferIndex {
-  private offers: Offer[] = [];
-  private tokens = new Map<string, number[]>();
-  private gtins = new Map<string, number[]>();
-
-  constructor(offers: Offer[] = []) {
-    this.load(offers);
-  }
-
-  get size(): number {
-    return this.offers.length;
-  }
-
-  load(offers: Offer[]): void {
-    this.offers = offers;
-    this.tokens = new Map();
-    this.gtins = new Map();
-    offers.forEach((offer, i) => {
-      for (const t of new Set(tokenize(`${offer.title} ${offer.brand ?? ''} ${offer.mpn ?? ''}`))) {
-        const list = this.tokens.get(t);
-        if (list) list.push(i);
-        else this.tokens.set(t, [i]);
-      }
-      if (offer.gtin) {
-        const list = this.gtins.get(offer.gtin);
-        if (list) list.push(i);
-        else this.gtins.set(offer.gtin, [i]);
-      }
-    });
-  }
-
-  private postings(token: string): Set<number> {
-    const exact = this.tokens.get(token);
-    const out = new Set<number>(exact ?? []);
-    // Préfixe pour les mots ≥ 3 caractères (« rtx » ⊂ « rtx5070 », « ryz » ⊂ « ryzen »).
-    if (token.length >= 3) {
-      for (const [key, list] of this.tokens) {
-        if (key !== token && key.startsWith(token)) for (const i of list) out.add(i);
-      }
-    }
-    return out;
-  }
-
-  /** Offres d'une catégorie, les moins chères d'abord. */
-  byCategory(category: string, limit: number): Offer[] {
-    return this.offers
-      .filter((o) => o.category === category)
-      .sort((a, b) => a.totalPrice - b.totalPrice)
-      .slice(0, limit);
-  }
-
-  search(q: string, limit: number, gtin?: string): Offer[] {
-    if (gtin) {
-      const hits = this.gtins.get(gtin);
-      if (hits?.length) return hits.slice(0, limit).map((i) => this.offers[i]);
-    }
-    const tokens = tokenize(q);
-    if (!tokens.length) return [];
-    // On exige tous les mots (en commençant par le plus rare pour réduire l'ensemble).
-    const sets = tokens.map((t) => this.postings(t)).sort((a, b) => a.size - b.size);
-    let result = sets[0];
-    for (const s of sets.slice(1)) {
-      result = new Set([...result].filter((i) => s.has(i)));
-      if (!result.size) break;
-    }
-    return [...result]
-      .map((i) => this.offers[i])
-      .sort((a, b) => a.totalPrice - b.totalPrice)
-      .slice(0, limit);
-  }
-}
-
 // ---------- Connecteur ----------
 
 export function createFeedConnector(merchant: MerchantDefinition): Connector {
-  const index = new OfferIndex();
   const keepAll = env(`FEED_${merchant.id.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_KEEP_ALL`) === 'true';
-  const cacheFile = path.join(config.cacheDir, 'feeds', `${merchant.id}.json`);
-  let loadedAt: Date | null = null;
-  let lastError: string | null = null;
-  let loading: Promise<void> | null = null;
-  let timer: NodeJS.Timeout | null = null;
-
-  async function refresh(): Promise<void> {
-    if (!merchant.feedUrl) return;
-    try {
-      const content = await readSource(merchant.feedUrl, AbortSignal.timeout(5 * 60_000));
-      const offers = parseFeed(content, merchant.feedFormat)
-        .map((r) => recordToOffer(r, merchant, keepAll))
-        .filter((o): o is Offer => o !== null);
-      index.load(offers);
-      loadedAt = new Date();
-      lastError = null;
-      await fs.mkdir(path.dirname(cacheFile), { recursive: true });
-      await fs.writeFile(cacheFile, JSON.stringify({ loadedAt, offers }));
-      console.log(`[feed:${merchant.id}] ${offers.length} offres high-tech indexées`);
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : String(err);
-      console.error(`[feed:${merchant.id}] échec du chargement: ${lastError}`);
-    }
-  }
-
-  async function loadFromCache(): Promise<boolean> {
-    try {
-      const data = JSON.parse(await fs.readFile(cacheFile, 'utf8')) as { loadedAt: string; offers: Offer[] };
-      index.load(data.offers);
-      loadedAt = new Date(data.loadedAt);
-      return Date.now() - loadedAt.getTime() < config.feedRefreshMinutes * 60_000;
-    } catch {
-      return false;
-    }
-  }
-
-  function ensureLoaded(): Promise<void> {
-    loading ??= (async () => {
-      const fresh = await loadFromCache();
-      if (!fresh) {
-        // Cache périmé mais présent : on sert le cache et on rafraîchit en arrière-plan.
-        if (index.size) void refresh();
-        else await refresh();
-      }
-      if (!timer) {
-        timer = setInterval(() => void refresh(), config.feedRefreshMinutes * 60_000);
-        timer.unref();
-      }
-    })();
-    return loading;
-  }
-
-  return {
+  return createCatalogConnector({
     id: `feed:${merchant.id}`,
     merchantId: merchant.id,
     enabled: () => Boolean(merchant.feedUrl),
-    warmup: ensureLoaded,
-    describe: () => ({ offers: index.size, loadedAt, lastError, format: merchant.feedFormat }),
-    async search(query: ConnectorQuery): Promise<Offer[]> {
-      await ensureLoaded();
-      if (!index.size && lastError) throw new Error(lastError);
-      if (query.browse && query.category) return index.byCategory(query.category, query.limit * 4);
-      return index.search(query.q, query.limit, query.gtin);
+    details: { format: merchant.feedFormat },
+    async load(signal) {
+      const content = await readSource(merchant.feedUrl!, signal);
+      return parseFeed(content, merchant.feedFormat)
+        .map((r) => recordToOffer(r, merchant, keepAll))
+        .filter((o): o is Offer => o !== null);
     },
-  };
+  });
 }

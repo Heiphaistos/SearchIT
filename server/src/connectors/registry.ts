@@ -6,7 +6,19 @@ import { createAmazonConnector } from './amazon.js';
 import { createDemoConnector } from './demo.js';
 import { createEbayConnector } from './ebay.js';
 import { createFeedConnector } from './feed.js';
+import { createGoogleShoppingConnector } from './google-shopping.js';
+import { createShopifyConnector, createWooCommerceConnector } from './stores.js';
 import type { Connector } from './types.js';
+
+const CONNECTIONS: Record<MerchantDefinition['kind'], MerchantInfo['connection']> = {
+  amazon: 'api',
+  aliexpress: 'api',
+  ebay: 'api',
+  feed: 'affiliate-feed',
+  shopify: 'public-store',
+  woocommerce: 'public-store',
+  'google-shopping': 'aggregator',
+};
 
 function createConnector(m: MerchantDefinition): Connector {
   switch (m.kind) {
@@ -18,6 +30,12 @@ function createConnector(m: MerchantDefinition): Connector {
       return createEbayConnector(m);
     case 'feed':
       return createFeedConnector(m);
+    case 'shopify':
+      return createShopifyConnector(m);
+    case 'woocommerce':
+      return createWooCommerceConnector(m);
+    case 'google-shopping':
+      return createGoogleShoppingConnector();
   }
 }
 
@@ -30,7 +48,11 @@ export interface Registry {
 export function createRegistry(): Registry {
   const merchants = getMerchantDefinitions();
   const real = merchants.map(createConnector);
-  const demoEnabled = () => config.demoMode === 'on' || (config.demoMode === 'auto' && !real.some((c) => c.enabled()));
+  // En mode « auto », la démo reste active tant qu'aucune grande source (Google Shopping,
+  // API marchande, flux d'affiliation) n'est configurée : les seules boutiques publiques
+  // ne suffisent pas à remplir le site. Chaque offre de démo est marquée comme telle.
+  const broad = real.filter((_, i) => merchants[i].kind !== 'shopify' && merchants[i].kind !== 'woocommerce');
+  const demoEnabled = () => config.demoMode === 'on' || (config.demoMode === 'auto' && !broad.some((c) => c.enabled()));
   const connectors = [...real, createDemoConnector(demoEnabled)];
 
   return {
@@ -43,7 +65,7 @@ export function createRegistry(): Registry {
         website: m.website,
         country: m.country,
         refurbished: m.refurbished,
-        connection: m.kind === 'feed' ? 'affiliate-feed' : 'api',
+        connection: CONNECTIONS[m.kind],
         enabled: real[i].enabled(),
         requiredEnv: requiredEnvFor(m),
         notes: m.notes,
