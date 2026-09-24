@@ -74,6 +74,17 @@ Caddy obtient et renouvelle automatiquement le certificat Let's Encrypt. Les por
 
 Mise à jour : `git pull && docker compose up -d --build`.
 
+### Déploiement automatique (GitHub Actions)
+
+À chaque push, `.github/workflows/deploy.yml` lance les tests. S'ils passent, le workflow se connecte au VPS en SSH et exécute `docker compose up -d --build`.
+
+Mise en place (une seule fois) :
+
+1. Sur le VPS : installer Docker, puis `git clone https://github.com/Heiphaistos/SearchIT.git /opt/searchit`, et créer `/opt/searchit/.env`.
+2. Créer une clé SSH dédiée (`ssh-keygen -t ed25519 -f searchit_deploy`) et ajouter `searchit_deploy.pub` à `~/.ssh/authorized_keys` de l'utilisateur de déploiement (membre du groupe `docker`).
+3. Sur GitHub, dans *Settings → Secrets and variables → Actions*, créer `VPS_HOST`, `VPS_USER` et `VPS_SSH_KEY` (contenu de la clé privée), et au besoin `VPS_PORT` et `VPS_APP_DIR`.
+4. Relancer le workflow depuis l'onglet *Actions* (*Run workflow*) ou pousser un commit.
+
 ### Option 2 : Node + systemd + nginx
 
 ```bash
