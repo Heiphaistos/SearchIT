@@ -27,7 +27,7 @@ Production : **https://searchit.heiphaistos.org**
 | [Open Icecat](https://icecat.biz) | aucune (`ICECAT_USERNAME` facultatif) | Gratuit | Fiches techniques et photos par EAN (bouton « Fiche technique ») |
 | [Taux BCE](https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.fr.html) | aucune | Gratuit | Conversion automatique en euros des prix en $ ou £ |
 
-Les résultats Google Shopping sont mis en cache 24 h sur disque, et un quota journalier par fournisseur protège les crédits gratuits.
+Les résultats Google Shopping sont mis en cache 24 h sur disque (`SERPER_CACHE_HOURS`), les requêtes identiques simultanées ne coûtent qu'un appel, les requêtes de moins de 2 caractères ne sont jamais envoyées, et un quota journalier par fournisseur (`SERPER_DAILY_LIMIT`) protège les crédits gratuits. Dès qu'une clé est définie, le mode démo se coupe (`DEMO_MODE=auto`).
 
 Ajouter une boutique Shopify ou WooCommerce :
 
@@ -135,7 +135,19 @@ curl -X POST https://searchit.heiphaistos.org/api/v1/lookup \
 
 - Spécification complète : `/api/v1/openapi.json`. Documentation lisible : page **API** du site.
 - Types TypeScript du contrat : `server/src/shared/types.ts` (`LookupRequest`, `LookupResponse`, `Offer`…).
-- Sécurité : définis `API_KEYS` pour exiger l'en-tête `x-api-key`, et `CORS_ORIGINS` avec le domaine du configurateur.
+- Sécurité : définis `API_KEYS` pour exiger la clé (en-tête `x-api-key` ou `Authorization: Bearer <clé>`), et `CORS_ORIGINS` avec le domaine du configurateur. `/api/*` est limité à `RATE_LIMIT_PER_MINUTE` requêtes par minute et par IP (le quart pour les lots) ; l'IP réelle est lue dans `X-Forwarded-For` seulement si la requête vient d'un proxy de confiance (`TRUST_PROXY`, par défaut local + réseaux privés Docker).
+
+### Contrat EnginePC
+
+[EnginePC](https://enginepc.heiphaistos.org) appelle `POST /api/v1/prices/lookup` :
+
+```bash
+curl -X POST https://searchit.heiphaistos.org/api/v1/prices/lookup   -H 'content-type: application/json' -H 'Authorization: Bearer VOTRE_CLE'   -d '{"currency":"EUR","country":"FR","items":[{"id":"amd-ryzen-7-9800x3d","name":"AMD Ryzen 7 9800X3D","category":"cpu"}]}'
+```
+
+Réponse : `{ results: [{ id, best, offers }], demo }` avec `Offer = { merchant, price, currency, url, inStock, shipping?, updatedAt?, demo? }`. Les catégories EnginePC (`cooler`, `phone`, `storage`…) sont converties, une catégorie inconnue est ignorée, 50 articles au plus, occasion exclue, produits introuvables omis. Les prix sont toujours en euros (`currency`/`country` sont indicatifs). `GET /api/v1/catalog` renvoie `{ components: [], devices: [] }` : SearchIT ne tient pas de catalogue de caractéristiques.
+
+Liens entrants côté site : `/recherche?q=…&category=…&ean=…` ouvre la recherche, `/configuration?data=<base64url(JSON)>&source=enginepc` importe les composants d'une configuration dans « Ma liste » avec un bouton « Modifier dans EnginePC ».
 
 ## Variables d'environnement
 

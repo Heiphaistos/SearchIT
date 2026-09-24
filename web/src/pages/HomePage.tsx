@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { CategoryIcon } from '../components/CategoryIcon';
 import { SearchBar } from '../components/SearchBar';
 import { api } from '../lib/api';
+import { usePageMeta } from '../lib/meta';
 
 const QUICK_SEARCHES = ['RTX 5070', 'iPhone 15 reconditionné', 'Ryzen 7 7800X3D', 'NAS Synology', 'SSD 2 To', 'MacBook Air M4', 'Pâte thermique', 'Serveur Dell PowerEdge', 'Chargeur GaN 65W', 'Disque dur NAS'];
 
@@ -20,8 +21,8 @@ const PILLARS = [
 export function HomePage() {
   const [merchants, setMerchants] = useState<MerchantInfo[]>([]);
 
+  usePageMeta('');
   useEffect(() => {
-    document.title = 'SearchIT – Comparateur de prix high-tech neuf et reconditionné';
     api.merchants().then((r) => setMerchants(r.merchants), () => undefined);
   }, []);
 

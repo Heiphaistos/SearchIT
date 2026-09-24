@@ -1,5 +1,6 @@
 import { Check, Copy } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { usePageMeta } from '../lib/meta';
 
 function Code({ children }: { children: string }) {
   const [copied, setCopied] = useState(false);
@@ -34,9 +35,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 export function DevelopersPage() {
-  useEffect(() => {
-    document.title = 'API – SearchIT';
-  }, []);
+  usePageMeta('API pour développeurs', 'API publique SearchIT : meilleur prix d’une configuration de PC, recherche multi-marchands et contrat EnginePC.');
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://searchit.heiphaistos.org';
 
   return (
@@ -53,8 +52,13 @@ export function DevelopersPage() {
 
       <Section title="Authentification">
         <p>
-          Si le serveur définit <code>API_KEYS</code>, chaque appel à <code>/api/v1</code> doit porter l’en-tête <code>x-api-key</code>. Les domaines autorisés à
-          appeler l’API depuis un navigateur se règlent avec <code>CORS_ORIGINS</code>.
+          Si le serveur définit <code>API_KEYS</code>, chaque appel à <code>/api/v1</code> doit porter la clé, au choix dans l’en-tête <code>x-api-key</code> ou
+          dans <code>Authorization: Bearer &lt;clé&gt;</code>. Les domaines autorisés à appeler l’API depuis un navigateur se règlent avec{' '}
+          <code>CORS_ORIGINS</code>. Le débit est limité par adresse IP (réponse <code>429</code> au-delà), plus strictement sur les lots.
+        </p>
+        <p>
+          En mode démonstration (aucune source de prix connectée), les offres portent <code>isDemo: true</code> (ou <code>demo: true</code> sur le contrat
+          EnginePC) : leurs prix sont fictifs.
         </p>
       </Section>
 
@@ -92,6 +96,40 @@ export function DevelopersPage() {
   "byMerchant": [ { "merchantId": "amazon", "merchantName": "Amazon.fr", "covered": 6, "total": 1301.2 } ],
   "missing": []
 }`}</Code>
+      </Section>
+
+      <Section title="Contrat EnginePC — POST /api/v1/prices/lookup">
+        <p>
+          Format attendu par le configurateur EnginePC. Les catégories EnginePC (<code>cpu</code>, <code>gpu</code>, <code>motherboard</code>, <code>ram</code>,{' '}
+          <code>storage</code>, <code>psu</code>, <code>case</code>, <code>cooler</code>, <code>laptop</code>, <code>phone</code>, <code>tablet</code>,{' '}
+          <code>nas</code>, <code>server</code>, <code>desktop</code>…) sont converties ; une catégorie inconnue est ignorée. 50 articles au plus, occasion
+          exclue, produits introuvables omis de la réponse. Les prix sont en euros.
+        </p>
+        <Code>{`curl -X POST ${origin}/api/v1/prices/lookup \\
+  -H 'content-type: application/json' \\
+  -H 'Authorization: Bearer VOTRE_CLE' \\
+  -d '{
+    "currency": "EUR", "country": "FR",
+    "items": [
+      { "id": "amd-ryzen-7-9800x3d", "name": "AMD Ryzen 7 9800X3D", "category": "cpu" },
+      { "id": "nvidia-rtx-5080", "name": "NVIDIA GeForce RTX 5080", "category": "gpu" }
+    ]
+  }'`}</Code>
+        <Code>{`{
+  "results": [
+    {
+      "id": "amd-ryzen-7-9800x3d",
+      "best": { "merchant": "LDLC", "price": 469.99, "currency": "EUR", "url": "https://…",
+                "inStock": true, "shipping": 0, "updatedAt": "2026-09-24T12:00:00.000Z" },
+      "offers": [ … ]
+    }
+  ]
+}`}</Code>
+        <p>
+          <code>GET /api/v1/catalog</code> renvoie <code>{'{ "components": [], "devices": [] }'}</code> : SearchIT compare les prix mais ne tient pas de
+          catalogue de caractéristiques, EnginePC garde le sien. Liens entrants côté site : <code>/recherche?q=…&amp;category=…&amp;ean=…</code> et{' '}
+          <code>/configuration?data=&lt;base64url(JSON)&gt;&amp;source=enginepc</code> (import dans « Ma liste »).
+        </p>
       </Section>
 
       <Section title="Recherche — GET /api/v1/search">
