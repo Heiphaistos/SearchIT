@@ -34,6 +34,7 @@ export const api = {
   search: (p: SearchParams, signal?: AbortSignal) => request<SearchResponse>(`/api/search?${searchParamsToQuery(p)}`, { signal }),
   lookup: (body: LookupRequest) =>
     request<LookupResponse>('/api/lookup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
+  health: () => request<{ status: string; demo: boolean }>('/api/health'),
   merchants: () => request<{ demo: boolean; merchants: Array<MerchantInfo & { details?: Record<string, unknown> }> }>('/api/merchants'),
   categories: () => request<{ groups: Record<CategoryGroup, string>; categories: Omit<Category, 'keywords'>[] }>('/api/categories'),
 };

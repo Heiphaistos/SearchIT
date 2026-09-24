@@ -1,8 +1,11 @@
 import { ListChecks, Moon, Search, Sun } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useSearchParams } from 'react-router-dom';
+import { api } from '../lib/api';
 import { listStore } from '../lib/list';
 import { themeStore, toggleTheme } from '../lib/theme';
 import { SearchBar } from './SearchBar';
+import { DemoBanner } from './ui';
 
 const NAV = [
   { to: '/liste', label: 'Ma liste' },
@@ -30,9 +33,19 @@ export function Layout() {
   const [params] = useSearchParams();
   const isHome = location.pathname === '/';
   const listCount = list.reduce((n, i) => n + i.quantity, 0);
+  const [demo, setDemo] = useState(false);
+
+  useEffect(() => {
+    // Sans réponse de /api/health, on n'affiche pas le bandeau : les offres restent marquées « Démo » une à une.
+    api.health().then((h) => setDemo(h.demo), () => setDemo(false));
+  }, []);
 
   return (
     <div className="flex min-h-dvh flex-col">
+      <a href="#contenu" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-3 focus:py-2 focus:shadow dark:focus:bg-slate-900">
+        Aller au contenu
+      </a>
+      {demo && <DemoBanner />}
       <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/80 backdrop-blur-xl dark:border-slate-800/70 dark:bg-slate-950/80">
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
           <Logo />
@@ -71,7 +84,7 @@ export function Layout() {
         )}
       </header>
 
-      <main className="flex-1">
+      <main id="contenu" className="flex-1">
         <Outlet />
       </main>
 

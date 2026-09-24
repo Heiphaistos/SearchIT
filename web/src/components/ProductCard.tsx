@@ -100,8 +100,15 @@ export function OffersTable({ offers, bestId }: { offers: Offer[]; bestId: strin
                 )}
               </td>
               <td className="px-3 py-2.5 text-right">
-                <a href={o.url} target="_blank" rel="nofollow sponsored noopener noreferrer" className="btn-outline px-3 py-1.5 text-xs">
-                  Voir <ExternalLink className="size-3.5" />
+                <a
+                  href={o.url}
+                  target="_blank"
+                  rel="nofollow sponsored noopener noreferrer"
+                  className="btn-outline px-3 py-1.5 text-xs"
+                  title={o.isDemo ? 'Prix fictif : ouvre la recherche du marchand, pas une offre réelle' : undefined}
+                >
+                  {o.isDemo ? 'Chercher' : 'Voir'} <ExternalLink className="size-3.5" />
+                  <span className="sr-only">chez {o.merchantName}</span>
                 </a>
               </td>
             </tr>
@@ -190,8 +197,15 @@ export function ProductCard({ group }: { group: ProductGroup }) {
               {inList ? <Check className="size-4" /> : <ListPlus className="size-4" />}
               <span className="sr-only sm:not-sr-only">{inList ? 'Ajouté' : 'Liste'}</span>
             </button>
-            <a href={best.url} target="_blank" rel="nofollow sponsored noopener noreferrer" className="btn-primary px-3">
-              Voir <ExternalLink className="size-4" />
+            <a
+              href={best.url}
+              target="_blank"
+              rel="nofollow sponsored noopener noreferrer"
+              className="btn-primary px-3"
+              title={best.isDemo ? 'Prix fictif : ouvre la recherche du marchand, pas une offre réelle' : undefined}
+            >
+              {best.isDemo ? 'Chercher' : 'Voir'} <ExternalLink className="size-4" />
+              <span className="sr-only">chez {best.merchantName}</span>
             </a>
           </div>
         </div>

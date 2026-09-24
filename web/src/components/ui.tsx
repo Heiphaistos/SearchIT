@@ -42,15 +42,20 @@ export function ErrorBox({ message }: { message: string }) {
   );
 }
 
+/** Bandeau global affiché sur toutes les pages tant que le serveur tourne en mode démo. */
 export function DemoBanner() {
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
-      <Info className="mt-0.5 size-4 shrink-0" />
-      <p>
-        <strong>Mode démonstration :</strong> aucune grande source de prix n’est encore connectée. Les offres marquées « Démo » concernent de vrais produits
-        mais ont des <strong>prix fictifs</strong>, et leurs liens ouvrent la recherche du marchand.{' '}
-        <Link to="/sources" className="font-medium underline underline-offset-2">Connecter les sources gratuites</Link>
-      </p>
+    <div role="note" className="border-b border-amber-300 bg-amber-100 text-sm text-amber-950 dark:border-amber-800/60 dark:bg-amber-950 dark:text-amber-100">
+      <div className="mx-auto flex max-w-7xl items-start gap-2 px-4 py-2 sm:px-6">
+        <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <p>
+          <strong>Données de démonstration : prix fictifs, aucun marchand connecté.</strong> Les produits existent, mais leurs prix sont inventés et les
+          boutons « Chercher » ouvrent seulement la recherche du marchand.{' '}
+          <Link to="/sources" className="font-medium underline underline-offset-2">
+            En savoir plus
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

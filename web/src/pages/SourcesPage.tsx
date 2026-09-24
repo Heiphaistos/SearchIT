@@ -1,8 +1,10 @@
 import type { MerchantInfo } from '@shared/types';
 import { CircleCheck, CircleX, ExternalLink, Recycle } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { DemoBanner, ErrorBox, Spinner } from '../components/ui';
+import { ErrorBox, Spinner } from '../components/ui';
 import { api } from '../lib/api';
+import { plural } from '../lib/format';
+import { usePageMeta } from '../lib/meta';
 
 type Merchant = MerchantInfo & { details?: Record<string, unknown> };
 
@@ -22,7 +24,7 @@ const FREE_SOURCES = [
     url: 'https://serper.dev',
     effort: '2 min · e-mail',
     free: '2 500 requêtes offertes',
-    text: 'La source la plus rentable : une seule clé remonte les prix de centaines de marchands français (Fnac, LDLC, Boulanger, Darty, Back Market, Leclerc…).',
+    text: 'La source la plus rentable : une seule clé remonte les prix de centaines de marchands français (Fnac, LDLC, Boulanger, Darty, Back Market, Leclerc…). Résultats mis en cache (SERPER_CACHE_HOURS) et quota journalier (SERPER_DAILY_LIMIT) pour ménager les crédits.',
     highlight: true,
   },
   { name: 'SearchApi.io – Google Shopping', env: 'SEARCHAPI_API_KEY', url: 'https://www.searchapi.io', effort: '2 min · e-mail', free: '100 requêtes offertes', text: 'Fournisseur de secours quand le quota Serper est atteint.' },
@@ -39,8 +41,8 @@ export function SourcesPage() {
   const [data, setData] = useState<{ demo: boolean; merchants: Merchant[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  usePageMeta('Marchands et sources de prix', 'Les marchands comparés par SearchIT et l’état de leurs sources de prix.');
   useEffect(() => {
-    document.title = 'Marchands – SearchIT';
     api.merchants().then(setData, (e: Error) => setError(e.message));
   }, []);
 
@@ -93,7 +95,13 @@ export function SourcesPage() {
       {!data && !error && <Spinner />}
       {data && (
         <>
-          <div className="mt-6">{data.demo ? <DemoBanner /> : <p className="text-sm font-medium text-emerald-600">{active} source(s) connectée(s).</p>}</div>
+          <div className="mt-6">{data.demo ? (
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                Mode démonstration : aucune source de prix n’est connectée, les prix affichés sont fictifs. Configurez une des sources ci-dessus pour afficher de vrais prix.
+              </p>
+            ) : (
+              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">{plural(active, 'source connectée', 'sources connectées')}.</p>
+            )}</div>
           <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900 dark:text-slate-400">
