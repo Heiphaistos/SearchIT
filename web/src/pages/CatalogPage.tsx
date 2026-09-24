@@ -47,7 +47,10 @@ export function CatalogPage() {
 
   const set = (patch: Record<string, string | undefined>) => {
     const next = new URLSearchParams(qs);
-    for (const [k, v] of Object.entries(patch)) v ? next.set(k, v) : next.delete(k);
+    for (const [k, v] of Object.entries(patch)) {
+      if (v) next.set(k, v);
+      else next.delete(k);
+    }
     if (!('page' in patch)) next.delete('page');
     setQs(next);
     if ('page' in patch) window.scrollTo({ top: 0, behavior: 'smooth' });
