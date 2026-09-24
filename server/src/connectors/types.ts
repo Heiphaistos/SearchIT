@@ -9,6 +9,8 @@ export interface ConnectorQuery {
   gtin?: string;
   /** Nombre max d'offres souhaitées. */
   limit: number;
+  /** Navigation par catégorie (pas de mots-clés saisis) : `q` contient alors un terme générique. */
+  browse?: boolean;
 }
 
 export interface Connector {

@@ -98,15 +98,17 @@ export class SearchEngine {
 
   async search(params: SearchParams): Promise<SearchResponse> {
     const started = Date.now();
+    // Sans mots-clés mais avec une catégorie : navigation dans la catégorie.
+    const browse = !params.q.trim() && Boolean(params.category);
     const intent = extractConditionIntent(params.q);
-    const q = intent.query;
+    const q = browse ? (getCategory(params.category!).keywords[0] ?? getCategory(params.category!).label) : intent.query;
     const conditions = params.conditions?.length ? params.conditions : intent.conditions.length ? intent.conditions : undefined;
     let detectedCategory = params.category ?? detectCategory(params.q);
     const page = Math.max(1, params.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 24));
 
     const { offers, sources } = await this.fetchAll(
-      { q, category: detectedCategory, conditions, minPrice: params.minPrice, maxPrice: params.maxPrice, limit: 60 },
+      { q, category: detectedCategory, conditions, minPrice: params.minPrice, maxPrice: params.maxPrice, limit: 60, browse },
       params.merchants,
     );
 
@@ -115,6 +117,10 @@ export class SearchEngine {
     const prepared = prepareQuery(q);
     const scored: ScoredOffer[] = [];
     for (const offer of offers) {
+      if (browse) {
+        if (offer.category === params.category) scored.push({ offer, relevance: 1 });
+        continue;
+      }
       const score = relevance(prepared, offer.title, `${offer.brand ?? ''} ${offer.mpn ?? ''}`);
       if (score >= MIN_RELEVANCE) scored.push({ offer, relevance: score });
     }

@@ -1,0 +1,23 @@
+# Alternative sans Docker. Installation :
+#   sudo cp deploy/searchit.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now searchit
+[Unit]
+Description=SearchIT - comparateur de prix high-tech
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=searchit
+WorkingDirectory=/opt/searchit/server
+EnvironmentFile=/opt/searchit/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node --import tsx src/index.ts
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/opt/searchit/server/.cache
+
+[Install]
+WantedBy=multi-user.target

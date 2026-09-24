@@ -42,7 +42,7 @@ function parseConditions(value: unknown): Condition[] | undefined {
 
 export function parseSearchParams(query: Record<string, unknown>): SearchParams {
   const q = String(query.q ?? '').trim();
-  if (!q) throw new BadRequest('Le paramètre « q » est requis');
+  if (!q && !query.category) throw new BadRequest('Le paramètre « q » (ou « category ») est requis');
   if (q.length > 200) throw new BadRequest('Requête trop longue (200 caractères max.)');
   const category = query.category ? String(query.category) : undefined;
   if (category && !isCategoryId(category)) throw new BadRequest(`Catégorie inconnue : ${category}`);

@@ -87,7 +87,7 @@ export function buildDemoOffers(merchants: MerchantDefinition[] = getMerchantDef
       // Occasion (places de marché)
       if (refurbable && (merchant.id === 'ebay' || merchant.id === 'rakuten') && rand() < 0.7) {
         const price = charmPrice(refPrice * (0.45 + rand() * 0.25));
-        offers.push(makeOffer({ ...base, sourceId: `u-${hash(title)}`, title: `${title} - Occasion`, url, price, shipping: shipping(price), condition: 'used', conditionGrade: 'Occasion - vendeur particulier', inStock: true }));
+        offers.push(makeOffer({ ...base, sourceId: `u-${hash(title)}`, title: `${title} - Occasion`, url, price, shipping: shipping(price), condition: 'used', conditionGrade: 'Vendeur particulier', inStock: true }));
       }
     }
   }
@@ -111,6 +111,7 @@ export function createDemoConnector(isEnabled: () => boolean): Connector {
     enabled: isEnabled,
     describe: () => ({ offers: getIndex().size, products: DEMO_CATALOG.length }),
     async search(query: ConnectorQuery): Promise<Offer[]> {
+      if (query.browse && query.category) return getIndex().byCategory(query.category, query.limit * 8);
       return getIndex().search(query.q, query.limit * 4);
     },
   };

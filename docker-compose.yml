@@ -1,0 +1,31 @@
+# Déploiement sur le VPS : `docker compose up -d --build`
+# Caddy obtient et renouvelle automatiquement le certificat HTTPS de searchit.heiphaistos.org.
+services:
+  searchit:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - searchit-cache:/app/server/.cache
+      # Marchands supplémentaires (flux produits) sans reconstruire l'image :
+      - ./server/config:/app/server/config:ro
+    expose:
+      - "8787"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [searchit]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  searchit-cache:
+  caddy-data:
+  caddy-config:

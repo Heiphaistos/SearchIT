@@ -239,6 +239,14 @@ export class OfferIndex {
     return out;
   }
 
+  /** Offres d'une catégorie, les moins chères d'abord. */
+  byCategory(category: string, limit: number): Offer[] {
+    return this.offers
+      .filter((o) => o.category === category)
+      .sort((a, b) => a.totalPrice - b.totalPrice)
+      .slice(0, limit);
+  }
+
   search(q: string, limit: number, gtin?: string): Offer[] {
     if (gtin) {
       const hits = this.gtins.get(gtin);
@@ -326,6 +334,7 @@ export function createFeedConnector(merchant: MerchantDefinition): Connector {
     async search(query: ConnectorQuery): Promise<Offer[]> {
       await ensureLoaded();
       if (!index.size && lastError) throw new Error(lastError);
+      if (query.browse && query.category) return index.byCategory(query.category, query.limit * 4);
       return index.search(query.q, query.limit, query.gtin);
     },
   };

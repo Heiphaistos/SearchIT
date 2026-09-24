@@ -119,6 +119,7 @@ export interface ProductGroup {
 export type SortKey = 'relevance' | 'price-asc' | 'price-desc' | 'savings' | 'offers';
 
 export interface SearchParams {
+  /** Mots-clés. Peut être vide si `category` est fourni (navigation par catégorie). */
   q: string;
   category?: CategoryId;
   conditions?: Condition[];

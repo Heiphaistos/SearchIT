@@ -1,0 +1,13 @@
+[
+  {
+    "id": "monmarchand",
+    "name": "Mon Marchand",
+    "website": "https://www.monmarchand.fr",
+    "refurbished": true,
+    "refurbishedOnly": false,
+    "feedUrl": "https://exemple-reseau-affiliation.com/feeds/monmarchand.csv.gz",
+    "feedFormat": "auto",
+    "searchUrl": "https://www.monmarchand.fr/recherche?q={q}",
+    "notes": "Ajouté via custom-merchants.json"
+  }
+]

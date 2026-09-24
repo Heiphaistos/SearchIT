@@ -86,7 +86,7 @@ export const openApiSpec = {
       get: {
         summary: 'Recherche multi-marchands, résultats regroupés par produit',
         parameters: [
-          { name: 'q', in: 'query', required: true, schema: { type: 'string' }, example: 'rtx 5070' },
+          { name: 'q', in: 'query', description: 'Mots-clés (facultatif si « category » est fourni)', schema: { type: 'string' }, example: 'rtx 5070' },
           { name: 'category', in: 'query', schema: { type: 'string', enum: categoryEnum } },
           { name: 'conditions', in: 'query', description: 'Liste séparée par des virgules', schema: { type: 'string' }, example: 'new,refurbished' },
           { name: 'merchants', in: 'query', description: 'Identifiants séparés par des virgules', schema: { type: 'string' }, example: 'ldlc,amazon' },

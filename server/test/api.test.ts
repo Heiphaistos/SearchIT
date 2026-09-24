@@ -167,3 +167,11 @@ describe('connecteurs', () => {
     expect(groups[0]).toMatchObject({ merchantCount: 2, minPrice: 160, maxPrice: 170, savingsPercent: 6 });
   });
 });
+
+describe('navigation par catégorie', () => {
+  it('liste une catégorie sans mots-clés', async () => {
+    const body = (await app.inject({ url: '/api/search?category=nas' })).json<SearchResponse>();
+    expect(body.total).toBeGreaterThanOrEqual(5);
+    for (const g of body.groups) expect(g.category).toBe('nas');
+  });
+});
