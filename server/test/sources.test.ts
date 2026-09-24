@@ -1,12 +1,14 @@
 import type { FastifyInstance } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.js';
-import { parseDelivery, shoppingItemToOffer } from '../src/connectors/google-shopping.js';
+import { createGoogleShoppingConnector, parseDelivery, shoppingItemToOffer } from '../src/connectors/google-shopping.js';
+import { createRegistry } from '../src/connectors/registry.js';
 import { mapIcecat } from '../src/connectors/icecat.js';
 import { shopifyProductToOffers, wooProductToOffer, type ShopifyProduct, type WooProduct } from '../src/connectors/stores.js';
 import type { Connector } from '../src/connectors/types.js';
 import { getMerchantDefinitions, resolveMerchant, type MerchantDefinition } from '../src/merchants.js';
 import { parseEcbXml, setRates, toEur } from '../src/search/currency.js';
+import { parsePrice } from '../src/search/normalize.js';
 import { makeOffer } from '../src/search/offer.js';
 import type { SearchResponse } from '../src/shared/types.js';
 
@@ -65,6 +67,65 @@ describe('Google Shopping', () => {
     });
     expect(shoppingItemToOffer({ title: 'x', merchant: 'y', url: '', price: '10 €' })).toBeNull();
     expect(shoppingItemToOffer({ title: 'RTX 5070', merchant: 'Newegg', url: 'https://n.test', price: '$549.99' })!.currency).toBe('USD');
+  });
+
+  it('lit les prix au format français (espaces insécables compris)', () => {
+    expect(parsePrice('374,00 €')).toBe(374);
+    expect(parsePrice('1 234,56 €')).toBe(1234.56);
+    expect(parsePrice('1 234,56 €')).toBe(1234.56);
+    expect(parsePrice('1 234,56 €')).toBe(1234.56);
+    expect(parsePrice('Prix indisponible')).toBeNull();
+  });
+
+  it('interroge Serper (fetch simulé), garde le nom du marchand et dédoublonne les appels', async () => {
+    vi.stubEnv('SERPER_API_KEY', 'cle-de-test');
+    const fetchMock = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) =>
+      new Response(
+        JSON.stringify({
+          shopping: [
+            { title: 'AMD Ryzen 7 9800X3D', source: 'Cdiscount', link: 'https://www.google.com/shopping/product/1', price: '1 234,56 €', productId: 'p1' },
+            { title: 'AMD Ryzen 7 9800X3D reconditionné', source: 'ConfigGaming', link: 'https://www.google.com/shopping/product/2', price: '374,00 €' },
+            { title: 'Prix cassé', source: 'X', link: 'https://www.google.com/shopping/product/3', price: 'n/a' },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const connector = createGoogleShoppingConnector();
+      expect(connector.enabled()).toBe(true);
+      const q = `ryzen 9800x3d test ${Date.now()}`;
+      const signal = new AbortController().signal;
+      const [a, b] = await Promise.all([connector.search({ q, category: null, limit: 10 }, signal), connector.search({ q, category: null, limit: 10 }, signal)]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('https://google.serper.dev/shopping');
+      expect(JSON.parse(String(init?.body))).toMatchObject({ q, gl: 'fr', hl: 'fr', num: 40 });
+      expect(a.map((o) => o.id)).toEqual(b.map((o) => o.id));
+      expect(a.map((o) => [o.merchantName, o.price, o.condition])).toEqual([
+        ['Cdiscount', 1234.56, 'new'],
+        ['ConfigGaming', 374, 'refurbished'],
+      ]);
+      // Cache : pas de second appel ; requête trop courte : aucun appel.
+      await connector.search({ q, category: null, limit: 10 }, signal);
+      expect(await connector.search({ q: 'a', category: null, limit: 10 }, signal)).toEqual([]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('désactive la démo dès que Serper est configuré (DEMO_MODE=auto)', () => {
+    vi.stubEnv('SERPER_API_KEY', 'cle-de-test');
+    try {
+      const demo = createRegistry().connectors.find((c) => c.id === 'demo');
+      expect(demo?.enabled()).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    expect(createRegistry().connectors.find((c) => c.id === 'demo')?.enabled()).toBe(true);
   });
 
   it('est déclarée comme source agrégée', () => {

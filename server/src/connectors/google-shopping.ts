@@ -38,8 +38,8 @@ interface Provider {
   fetch(q: string, signal: AbortSignal): Promise<ShoppingItem[]>;
 }
 
-const GL = () => env('GOOGLE_SHOPPING_COUNTRY') ?? 'fr';
-const HL = () => env('GOOGLE_SHOPPING_LANGUAGE') ?? 'fr';
+const GL = () => env('SERPER_GL') ?? env('GOOGLE_SHOPPING_COUNTRY') ?? 'fr';
+const HL = () => env('SERPER_HL') ?? env('GOOGLE_SHOPPING_LANGUAGE') ?? 'fr';
 
 interface SerperResponse {
   shopping?: Array<{ title: string; source: string; link: string; price: string; delivery?: string; imageUrl?: string; rating?: number; ratingCount?: number; productId?: string }>;
@@ -94,7 +94,7 @@ function createProviders(): Provider[] {
           method: 'POST',
           signal,
           headers: { 'X-API-KEY': this.key!, 'content-type': 'application/json' },
-          body: JSON.stringify({ q, gl: GL(), hl: HL() }),
+          body: JSON.stringify({ q, gl: GL(), hl: HL(), num: 40 }),
         });
         return (data.shopping ?? []).map((r) => ({
           title: r.title,
@@ -196,9 +196,29 @@ class DiskCache {
 
 export function createGoogleShoppingConnector(): Connector {
   const providers = createProviders().filter((p) => p.key);
-  const cacheHours = Number.parseInt(env('GOOGLE_SHOPPING_CACHE_HOURS') ?? '', 10) || 24;
+  const cacheHours = Number.parseInt(env('SERPER_CACHE_HOURS') ?? env('GOOGLE_SHOPPING_CACHE_HOURS') ?? '', 10) || 24;
   const cache = new DiskCache(path.join(config.cacheDir, 'google-shopping.json'), cacheHours * 3_600_000);
   const usage = new Map<string, { day: string; count: number }>();
+  // Requêtes identiques en vol (ex. plusieurs articles d'un même lot) : un seul appel payant.
+  const inFlight = new Map<string, Promise<ShoppingItem[]>>();
+
+  const fetchItems = async (q: string, signal: AbortSignal): Promise<ShoppingItem[]> => {
+    const errors: string[] = [];
+    for (const provider of providers) {
+      if (used(provider) >= provider.dailyLimit) {
+        errors.push(`${provider.id} : quota journalier atteint (${provider.dailyLimit})`);
+        continue;
+      }
+      usage.set(provider.id, { day: today(), count: used(provider) + 1 });
+      try {
+        return await provider.fetch(q, signal);
+      } catch (err) {
+        errors.push(`${provider.id} : ${err instanceof Error ? err.message : err}`);
+        if (signal.aborted) break;
+      }
+    }
+    throw new Error(errors.join(' ; ') || 'Aucun fournisseur disponible');
+  };
 
   const today = () => new Date().toISOString().slice(0, 10);
   const used = (p: Provider) => {
@@ -218,24 +238,15 @@ export function createGoogleShoppingConnector(): Connector {
     async search(query: ConnectorQuery, signal: AbortSignal): Promise<Offer[]> {
       const q = query.q.trim();
       const key = normalizeText(q);
+      if (key.length < 2) return [];
       let items = cache.get(key);
       if (!items) {
-        const errors: string[] = [];
-        for (const provider of providers) {
-          if (used(provider) >= provider.dailyLimit) {
-            errors.push(`${provider.id} : quota journalier atteint (${provider.dailyLimit})`);
-            continue;
-          }
-          usage.set(provider.id, { day: today(), count: used(provider) + 1 });
-          try {
-            items = await provider.fetch(q, signal);
-            break;
-          } catch (err) {
-            errors.push(`${provider.id} : ${err instanceof Error ? err.message : err}`);
-            if (signal.aborted) break;
-          }
+        let pending = inFlight.get(key);
+        if (!pending) {
+          pending = fetchItems(q, signal).finally(() => inFlight.delete(key));
+          inFlight.set(key, pending);
         }
-        if (!items) throw new Error(errors.join(' ; ') || 'Aucun fournisseur disponible');
+        items = await pending;
         cache.set(key, items);
       }
       return items.map(shoppingItemToOffer).filter((o): o is Offer => o !== null);
