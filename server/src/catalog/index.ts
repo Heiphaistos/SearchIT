@@ -15,9 +15,11 @@ const VARIANTS = new Set(['ti', 'super', 'xt', 'xtx', 'pro', 'max', 'plus', 'ult
 
 interface Indexed {
   product: CatalogProduct;
+  /** Mots du nom (pour la correspondance avec les titres d'offres). */
   tokens: string[];
   tokenSet: Set<string>;
-  text: string;
+  /** Mots de marque + nom + gamme (recherche et autocomplétion). */
+  textTokens: string[];
 }
 
 export class Catalog {
@@ -27,16 +29,20 @@ export class Catalog {
 
   constructor(products: CatalogProduct[]) {
     const seen = new Set<string>();
+    const seenNames = new Set<string>();
     this.products = products.filter((p) => {
-      // Garde-fous : identifiant unique, catégorie connue, nom présent.
-      if (!p?.id || !p.name || seen.has(p.id) || !isCategoryId(p.category)) return false;
+      // Garde-fous : identifiant et nom uniques par catégorie, catégorie connue.
+      if (!p?.id || !p.name || !isCategoryId(p.category)) return false;
+      const nameKey = `${p.category}|${normalizeText(p.name)}`;
+      if (seen.has(p.id) || seenNames.has(nameKey)) return false;
       seen.add(p.id);
+      seenNames.add(nameKey);
       return true;
     });
     for (const p of this.products) this.byId.set(p.id, p);
     this.indexed = this.products.map((product) => {
       const tokens = [...new Set(tokenize(product.name))];
-      return { product, tokens, tokenSet: new Set(tokens), text: normalizeText(`${product.brand} ${product.name} ${product.family ?? ''}`) };
+      return { product, tokens, tokenSet: new Set(tokens), textTokens: [...new Set(tokenize(`${product.brand} ${product.name} ${product.family ?? ''}`))] };
     });
   }
 
@@ -81,10 +87,7 @@ export class Catalog {
     const last = tokens[tokens.length - 1];
     const full = tokens.slice(0, -1);
     return this.indexed
-      .filter((i) => {
-        const all = tokenize(i.text);
-        return full.every((t) => all.includes(t)) && all.some((t) => t.startsWith(last));
-      })
+      .filter((i) => full.every((t) => i.textTokens.includes(t)) && i.textTokens.some((t) => t.startsWith(last)))
       .sort((a, b) => (b.product.year ?? 0) - (a.product.year ?? 0) || a.product.name.length - b.product.name.length)
       .slice(0, limit)
       .map((i) => i.product.name);
@@ -94,10 +97,7 @@ export class Catalog {
     const q = params.q ? tokenize(params.q) : [];
     const base = this.indexed.filter((i) => {
       if (params.category && i.product.category !== params.category) return false;
-      if (q.length) {
-        const all = tokenize(i.text);
-        if (!q.every((t) => all.some((a) => a === t || (t.length >= 2 && a.startsWith(t))))) return false;
-      }
+      if (q.length && !q.every((t) => i.textTokens.some((a) => a === t || (t.length >= 2 && a.startsWith(t))))) return false;
       return true;
     });
     const facets = buildFacets(base.map((i) => i.product));

@@ -38,6 +38,8 @@ const CATALOGS: Record<string, CategoryId[]> = {
   refurbed: ['smartphone', 'tablet', 'laptop', 'desktop', 'smartwatch', 'monitor', 'headset', 'console'],
 };
 
+const MAX_DEMO_MERCHANTS = 7;
+
 const GRADES: Array<[string, number]> = [
   ['Parfait état', 0.84],
   ['Très bon état', 0.76],
@@ -117,9 +119,13 @@ export function buildDemoOffers(merchants: MerchantDefinition[] = getMerchantDef
   const offers: Offer[] = [];
   const updatedAt = new Date().toISOString();
   for (const [category, brand, title, refPrice, refurbable] of products) {
-    for (const merchant of merchants) {
-      const categories = CATALOGS[merchant.id];
-      if (!categories?.includes(category)) continue;
+    // Au plus MAX_DEMO_MERCHANTS marchands par produit (choix déterministe) : garde un
+    // volume d'offres raisonnable avec un catalogue de plusieurs milliers de produits.
+    const eligible = merchants
+      .filter((m) => CATALOGS[m.id]?.includes(category))
+      .sort((a, b) => hash(`${a.id}|${title}`).localeCompare(hash(`${b.id}|${title}`)))
+      .slice(0, MAX_DEMO_MERCHANTS);
+    for (const merchant of eligible) {
       const rand = rng(`${merchant.id}|${title}`);
       const base = { merchantId: merchant.id, merchantName: merchant.name, brand, category, isDemo: true, updatedAt };
       const url = searchUrlFor(merchant, title.replace(/^(Processeur|Carte graphique|Carte mère|Mémoire RAM|SSD|Disque dur|Alimentation|Boîtier PC|Ventirad|PC portable( gamer)?|PC de bureau|Serveur|NAS|Écran PC|Pâte thermique)\s+/i, ''));
