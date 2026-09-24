@@ -1,13 +1,15 @@
 import { getCategory } from '@shared/categories';
 import type { Condition, Offer, ProductGroup } from '@shared/types';
-import { Check, ChevronDown, ExternalLink, FileText, ListPlus, Star, Store, TrendingDown } from 'lucide-react';
+import { Check, ChevronDown, ExternalLink, FileText, ListPlus, Scale, Star, Store, TrendingDown } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { CONDITION_META, formatPrice, formatShipping, plural } from '../lib/format';
+import { compareStore, MAX_COMPARE, toggleCompare } from '../lib/compare';
 import { addGroupToList, listStore } from '../lib/list';
 import { CategoryIcon } from './CategoryIcon';
 import { PriceHistoryBadge } from './PriceHistory';
 import { ProductSheetPanel } from './ProductSheet';
 import { ConditionBadge } from './ui';
+import { WatchButton } from './WatchButton';
 
 function ProductImage({ group }: { group: ProductGroup }) {
   const [failed, setFailed] = useState(false);
@@ -139,10 +141,13 @@ export function ProductCard({ group }: { group: ProductGroup }) {
   const [panel, setPanel] = useState<'offers' | 'sheet' | null>(null);
   const sheetQuery = sheetQueryFor(group);
   const inList = listStore.use().some((i) => i.ref === group.key);
+  const compared = compareStore.use();
+  const inCompare = compared.some((g) => g.key === group.key);
+  const compareFull = compared.length >= MAX_COMPARE;
   const best = group.bestOffer;
 
   return (
-    <article className="card animate-fade-in overflow-hidden">
+    <article className="card animate-fade-in">
       <div className="flex flex-col gap-4 p-4 sm:flex-row sm:p-5">
         <div className="size-24 shrink-0 overflow-hidden rounded-xl bg-white ring-1 ring-slate-100 dark:bg-slate-800 dark:ring-slate-800 sm:size-28">
           <ProductImage group={group} />
@@ -194,6 +199,17 @@ export function ProductCard({ group }: { group: ProductGroup }) {
           </div>
           <div className="flex gap-2">
             <button
+              onClick={() => toggleCompare(group)}
+              disabled={!inCompare && compareFull}
+              className={`btn-outline px-3 ${inCompare ? 'text-brand-600 ring-2 ring-brand-500/40 dark:text-brand-400' : ''}`}
+              title={inCompare ? 'Retirer du comparateur' : compareFull ? 'Comparateur plein (4 produits)' : 'Comparer ce produit'}
+              aria-pressed={inCompare}
+            >
+              <Scale className="size-4" />
+              <span className="sr-only">Comparer</span>
+            </button>
+            <WatchButton group={group} />
+            <button
               onClick={() => addGroupToList(group)}
               className={inList ? 'btn-outline px-3 text-emerald-600 dark:text-emerald-400' : 'btn-outline px-3'}
               title="Ajouter à ma liste"
@@ -210,7 +226,7 @@ export function ProductCard({ group }: { group: ProductGroup }) {
 
       {(group.offers.length > 1 || sheetQuery) && (
         <>
-          <div className="flex border-t border-slate-100 dark:border-slate-800">
+          <div className="flex overflow-hidden rounded-b-2xl border-t border-slate-100 dark:border-slate-800">
             {group.offers.length > 1 && (
               <PanelButton active={panel === 'offers'} onClick={() => setPanel((p) => (p === 'offers' ? null : 'offers'))}>
                 {panel === 'offers' ? 'Masquer les offres' : `Comparer les ${group.offers.length} offres`}

@@ -13,6 +13,10 @@ Production : **https://searchit.heiphaistos.org**
 - Filtres par état, catégorie, marchand, prix et stock. Les accessoires (coques, câbles…) sont masqués quand on cherche un appareil.
 - Navigation par catégorie (35 catégories, des processeurs aux onduleurs).
 - **Ma liste** : un panier de comparaison (par exemple tous les composants d'un PC). Il calcule le total optimal en achetant chez plusieurs marchands, et le total si tout est acheté chez un seul marchand.
+- **Suivis de prix** : prix cible par produit, revérification automatique et notification du navigateur quand la cible est atteinte (page « Suivis »).
+- **Bons plans** : les plus fortes baisses par rapport à la moyenne des 30 derniers jours, calculées uniquement sur des prix réellement relevés.
+- **Comparateur** : jusqu'à 4 produits côte à côte (prix neuf, reconditionné, occasion, prix au To, caractéristiques Icecat).
+- **Tableau de bord `/admin`** (jeton `ADMIN_TOKEN`) : recherches, recherches populaires, quotas Google Shopping, état des sources et dernières erreurs.
 - **Historique des prix** : mini-graphique et badge « prix le plus bas depuis N jours ». Seules les offres réelles sont enregistrées, jamais les prix de démo.
 - **Prix au To ou au Go** pour les SSD, disques durs, cartes mémoire et la RAM, avec un tri associé.
 - **Autocomplétion** : recherches populaires, titres de produits connus, catégories et recherches récentes.

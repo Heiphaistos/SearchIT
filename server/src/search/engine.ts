@@ -42,8 +42,17 @@ interface FetchResult {
   sources: SourceStatus[];
 }
 
+export interface SourceError {
+  at: string;
+  connector: string;
+  status: SourceStatus['status'];
+  error: string;
+}
+
 export class SearchEngine {
   private cache: TtlCache<Offer[]>;
+  private counters = { searches: 0, lookups: 0, startedAt: new Date().toISOString() };
+  private errors: SourceError[] = [];
 
   constructor(private connectors: Connector[], private options: EngineOptions) {
     this.cache = new TtlCache(options.cacheTtlMs);
@@ -55,6 +64,11 @@ export class SearchEngine {
 
   isDemo(): boolean {
     return this.activeConnectors().some((c) => c.id === 'demo');
+  }
+
+  /** Compteurs et dernières erreurs des sources, pour le tableau de bord d'administration. */
+  stats(): { searches: number; lookups: number; startedAt: string; recentErrors: SourceError[] } {
+    return { ...this.counters, recentErrors: [...this.errors] };
   }
 
   clearCache(): void {
@@ -84,6 +98,13 @@ export class SearchEngine {
           return offers;
         } catch (err) {
           const timedOut = controller.signal.aborted;
+          this.errors.unshift({
+            at: new Date().toISOString(),
+            connector: connector.id,
+            status: timedOut ? 'timeout' : 'error',
+            error: timedOut ? 'délai dépassé' : err instanceof Error ? err.message : String(err),
+          });
+          this.errors.length = Math.min(this.errors.length, 50);
           sources.push({
             merchantId: connector.merchantId,
             connector: connector.id,
@@ -117,6 +138,7 @@ export class SearchEngine {
     const intent = extractConditionIntent(params.q);
     const q = browse ? (getCategory(params.category!).keywords[0] ?? getCategory(params.category!).label) : intent.query;
     const conditions = params.conditions?.length ? params.conditions : intent.conditions.length ? intent.conditions : undefined;
+    if (opts.track !== false) this.counters.searches++;
     let detectedCategory = params.category ?? detectCategory(params.q);
     const page = Math.max(1, params.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 24));
@@ -209,6 +231,7 @@ export class SearchEngine {
   /** Recherche du meilleur prix pour une liste de composants (API du configurateur). */
   async lookup(request: LookupRequest): Promise<LookupResponse> {
     const started = Date.now();
+    this.counters.lookups++;
     const alternatives = Math.min(20, Math.max(0, request.alternatives ?? 3));
     const items = request.items.slice(0, 50);
     const results: LookupResult[] = [];

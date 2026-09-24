@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import helmet from '@fastify/helmet';
@@ -225,6 +226,34 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     return [q, engine.suggest(q).queries];
   });
 
+  // Bons plans : fortes baisses de prix réellement relevées.
+  app.get('/api/deals', async (req) => {
+    const q = req.query as Record<string, string | undefined>;
+    const category = q.category && isCategoryId(q.category) ? q.category : undefined;
+    return { deals: history.deals({ category, limit: Math.min(100, Number(q.limit) || 48) }), demo: engine.isDemo() };
+  });
+
+  // Tableau de bord d'administration (jeton ADMIN_TOKEN, comparaison à temps constant).
+  app.get('/api/admin/stats', limited(20), async (req, reply) => {
+    if (!config.adminToken) return reply.status(404).send({ error: 'Administration désactivée : définissez ADMIN_TOKEN dans .env' });
+    const given = Buffer.from(String(req.headers['x-admin-token'] ?? ''));
+    const expected = Buffer.from(config.adminToken);
+    if (given.length !== expected.length || !timingSafeEqual(given, expected)) return reply.status(401).send({ error: 'Jeton invalide' });
+    const mem = process.memoryUsage();
+    return {
+      now: new Date().toISOString(),
+      uptimeSeconds: Math.round(process.uptime()),
+      memoryMb: Math.round(mem.rss / 1_048_576),
+      node: process.version,
+      demo: engine.isDemo(),
+      engine: engine.stats(),
+      history: history.stats(),
+      currencies: ratesInfo(),
+      topQueries: history.topQueries(30),
+      sources: registry.connectors.map((c) => ({ id: c.id, merchantId: c.merchantId, enabled: c.enabled(), details: c.describe?.() ?? null })),
+    };
+  });
+
   app.get('/api/history/:key', async (req) => {
     const { key } = req.params as { key: string };
     return { key, points: history.points(key), summary: history.summary(key) ?? null };
@@ -244,11 +273,12 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   // Référencement : robots.txt et plan du site (pages, catégories, recherches populaires).
   app.get('/robots.txt', async (_req, reply) => {
     reply.type('text/plain; charset=utf-8');
-    return `User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: ${config.publicUrl}/sitemap.xml\n`;
+    return `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin\nSitemap: ${config.publicUrl}/sitemap.xml\n`;
   });
   app.get('/sitemap.xml', async (_req, reply) => {
     const urls = [
       '/',
+      '/bons-plans',
       '/sources',
       '/developpeurs',
       ...CATEGORIES.filter((c) => c.id !== 'other').map((c) => `/recherche?category=${c.id}`),
@@ -272,6 +302,8 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     });
     app.setNotFoundHandler((req, reply) => {
       if (req.url.startsWith('/api/')) return reply.status(404).send({ error: 'Route inconnue' });
+      // Fichier versionné disparu (ancien onglet après un déploiement) : vrai 404, pas la page HTML.
+      if (req.url.startsWith('/assets/')) return reply.status(404).type('text/plain').send('Not found');
       return reply.header('cache-control', 'no-cache').sendFile('index.html');
     });
   }

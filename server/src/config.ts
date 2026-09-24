@@ -43,6 +43,8 @@ export const config = {
   rateLimitPerMinute: Number.parseInt(process.env.RATE_LIMIT_PER_MINUTE ?? '', 10) >= 0 && process.env.RATE_LIMIT_PER_MINUTE ? Number.parseInt(process.env.RATE_LIMIT_PER_MINUTE, 10) : 60,
   /** Derrière un reverse proxy (Caddy, nginx) : lire l'IP réelle dans X-Forwarded-For. */
   trustProxy: process.env.TRUST_PROXY !== 'false',
+  /** Jeton du tableau de bord /admin (vide = administration désactivée). */
+  adminToken: process.env.ADMIN_TOKEN?.trim() || null,
 };
 
 export function env(name: string): string | undefined {

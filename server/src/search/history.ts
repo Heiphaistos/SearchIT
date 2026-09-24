@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { PriceHistory, PricePoint, ProductGroup } from '../shared/types.js';
+import type { CategoryId, Deal, PriceHistory, PricePoint, ProductGroup } from '../shared/types.js';
 import { normalizeText } from './normalize.js';
 
 // Historique des prix et recherches populaires, persistés dans un simple fichier JSON
@@ -12,8 +12,17 @@ const MAX_PRODUCTS = 50_000;
 const MAX_QUERIES = 5_000;
 const SPARKLINE_DAYS = 90;
 
+/** Métadonnées minimales d'un produit suivi (pour la page « Bons plans »). */
+export interface ProductMeta {
+  t: string;
+  c: CategoryId;
+  i?: string;
+  q?: string;
+}
+
 interface Data {
   products: Record<string, PricePoint[]>;
+  meta?: Record<string, ProductMeta>;
   queries: Record<string, { q: string; count: number; last: number }>;
 }
 
@@ -27,6 +36,7 @@ function minDefined(a: number | undefined, b: number | undefined): number | unde
 
 export class HistoryStore {
   private products = new Map<string, PricePoint[]>();
+  private meta = new Map<string, ProductMeta>();
   private queries = new Map<string, { q: string; count: number; last: number }>();
   private timer: NodeJS.Timeout | null = null;
 
@@ -35,6 +45,7 @@ export class HistoryStore {
     try {
       const data = JSON.parse(fs.readFileSync(file, 'utf8')) as Data;
       this.products = new Map(Object.entries(data.products ?? {}));
+      this.meta = new Map(Object.entries(data.meta ?? {}));
       this.queries = new Map(Object.entries(data.queries ?? {}));
     } catch {
       // premier démarrage
@@ -63,12 +74,16 @@ export class HistoryStore {
         if (points.length > MAX_DAYS) points.splice(0, points.length - MAX_DAYS);
       }
       this.products.set(g.key, points);
+      this.meta.set(g.key, { t: g.title, c: g.category, i: g.imageUrl });
       changed = true;
     }
     if (this.products.size > MAX_PRODUCTS) {
       // On oublie les produits les moins récemment vus.
       const sorted = [...this.products.entries()].sort((a, b) => (a[1].at(-1)?.d ?? '').localeCompare(b[1].at(-1)?.d ?? ''));
-      for (const [key] of sorted.slice(0, this.products.size - MAX_PRODUCTS)) this.products.delete(key);
+      for (const [key] of sorted.slice(0, this.products.size - MAX_PRODUCTS)) {
+        this.products.delete(key);
+        this.meta.delete(key);
+      }
     }
     if (changed) this.scheduleSave();
   }
@@ -112,6 +127,51 @@ export class HistoryStore {
     return { lowest: lowest.min, lowestDate: lowest.d, since: first.d, days, points: points.slice(-SPARKLINE_DAYS) };
   }
 
+  /**
+   * Bons plans : produits vus récemment dont le prix actuel est nettement sous la
+   * moyenne de leurs 30 jours précédents. Uniquement des prix réellement relevés.
+   */
+  deals(opts: { category?: CategoryId; limit?: number; minDrop?: number; now?: number } = {}): Deal[] {
+    const now = opts.now ?? Date.now();
+    const minDrop = opts.minDrop ?? 5;
+    const out: Deal[] = [];
+    for (const [key, points] of this.products) {
+      const meta = this.meta.get(key);
+      if (!meta || (opts.category && meta.c !== opts.category) || points.length < 3) continue;
+      const last = points[points.length - 1];
+      if (now - Date.parse(last.d) > 3 * 86_400_000) continue; // prix trop ancien
+      const window = points.slice(0, -1).filter((p) => now - Date.parse(p.d) <= 31 * 86_400_000);
+      if (window.length < 2) continue;
+      const average = window.reduce((sum, p) => sum + p.min, 0) / window.length;
+      const dropPercent = Math.round(((average - last.min) / average) * 1000) / 10;
+      if (dropPercent < minDrop) continue;
+      const lowest = Math.min(...points.map((p) => p.min));
+      out.push({
+        key,
+        title: meta.t,
+        category: meta.c,
+        imageUrl: meta.i,
+        current: last.min,
+        average: Math.round(average * 100) / 100,
+        dropPercent,
+        atLowest: last.min <= lowest + 0.01,
+        points: points.slice(-31),
+      });
+    }
+    return out.sort((a, b) => b.dropPercent - a.dropPercent).slice(0, opts.limit ?? 48);
+  }
+
+  topQueries(limit: number): Array<{ q: string; count: number; last: string }> {
+    return [...this.queries.values()]
+      .sort((a, b) => b.count - a.count || b.last - a.last)
+      .slice(0, limit)
+      .map((v) => ({ q: v.q, count: v.count, last: new Date(v.last).toISOString() }));
+  }
+
+  stats(): { products: number; queries: number } {
+    return { products: this.products.size, queries: this.queries.size };
+  }
+
   private scheduleSave(): void {
     if (!this.file || this.timer) return;
     this.timer = setTimeout(() => {
@@ -123,7 +183,7 @@ export class HistoryStore {
 
   flush(): void {
     if (!this.file) return;
-    const data: Data = { products: Object.fromEntries(this.products), queries: Object.fromEntries(this.queries) };
+    const data: Data = { products: Object.fromEntries(this.products), meta: Object.fromEntries(this.meta), queries: Object.fromEntries(this.queries) };
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const tmp = `${this.file}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(data));

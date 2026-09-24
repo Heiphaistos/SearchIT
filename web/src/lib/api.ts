@@ -1,4 +1,4 @@
-import type { Category, CategoryGroup, LookupRequest, LookupResponse, MerchantInfo, SearchParams, SearchResponse } from '@shared/types';
+import type { Category, CategoryGroup, Deal, LookupRequest, LookupResponse, MerchantInfo, SearchParams, SearchResponse } from '@shared/types';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -35,5 +35,7 @@ export const api = {
   lookup: (body: LookupRequest) =>
     request<LookupResponse>('/api/lookup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
   merchants: () => request<{ demo: boolean; merchants: Array<MerchantInfo & { details?: Record<string, unknown> }> }>('/api/merchants'),
+  deals: (category?: string) => request<{ deals: Deal[]; demo: boolean }>(`/api/deals${category ? `?category=${category}` : ''}`),
+  adminStats: (token: string) => request<Record<string, unknown>>('/api/admin/stats', { headers: { 'x-admin-token': token } }),
   categories: () => request<{ groups: Record<CategoryGroup, string>; categories: Omit<Category, 'keywords'>[] }>('/api/categories'),
 };

@@ -121,6 +121,22 @@ export interface PriceHistory {
   points: PricePoint[];
 }
 
+/** Baisse de prix détectée dans l'historique (page « Bons plans »). */
+export interface Deal {
+  key: string;
+  title: string;
+  category: CategoryId;
+  imageUrl?: string;
+  /** Meilleur prix actuel. */
+  current: number;
+  /** Moyenne des 30 jours précédents. */
+  average: number;
+  dropPercent: number;
+  /** Le prix actuel est le plus bas jamais relevé. */
+  atLowest: boolean;
+  points: PricePoint[];
+}
+
 export interface UnitPrice {
   value: number;
   unit: '€/To' | '€/Go';

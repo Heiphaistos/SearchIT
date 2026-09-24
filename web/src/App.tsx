@@ -1,11 +1,15 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { EmptyState } from './components/ui';
+import { AdminPage } from './pages/AdminPage';
+import { ComparePage } from './pages/ComparePage';
+import { DealsPage } from './pages/DealsPage';
 import { DevelopersPage } from './pages/DevelopersPage';
 import { HomePage } from './pages/HomePage';
 import { ListPage } from './pages/ListPage';
 import { SearchPage } from './pages/SearchPage';
 import { SourcesPage } from './pages/SourcesPage';
+import { WatchPage } from './pages/WatchPage';
 
 const router = createBrowserRouter([
   {
@@ -16,6 +20,10 @@ const router = createBrowserRouter([
       { path: '/liste', element: <ListPage /> },
       { path: '/sources', element: <SourcesPage /> },
       { path: '/developpeurs', element: <DevelopersPage /> },
+      { path: '/bons-plans', element: <DealsPage /> },
+      { path: '/suivis', element: <WatchPage /> },
+      { path: '/comparer', element: <ComparePage /> },
+      { path: '/admin', element: <AdminPage /> },
       {
         path: '*',
         element: (
