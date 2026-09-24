@@ -1,13 +1,9 @@
-name: Tests & déploiement
+name: Tests
 
 on:
   push:
     branches: [main, claude/modest-brahmagupta-jt1dx8]
   workflow_dispatch:
-
-concurrency:
-  group: deploy
-  cancel-in-progress: false
 
 jobs:
   test:
@@ -22,31 +18,3 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build -w web
-
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Déploiement sur le VPS (searchit.heiphaistos.org)
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          script: |
-            set -e
-            cd ${{ secrets.VPS_APP_DIR || '/opt/searchit' }}
-            git fetch origin ${{ github.ref_name }}
-            git checkout -B ${{ github.ref_name }} origin/${{ github.ref_name }}
-            test -f .env || cp .env.example .env
-            docker compose up -d --build --remove-orphans
-            docker image prune -f
-            for i in $(seq 1 30); do
-              docker compose exec -T searchit wget -qO- http://127.0.0.1:8787/api/health && exit 0
-              sleep 2
-            done
-            echo "SearchIT ne répond pas après le déploiement" >&2
-            docker compose logs --tail 50 searchit
-            exit 1
