@@ -11,6 +11,10 @@ export interface ConnectorQuery {
   limit: number;
   /** Navigation par catégorie (pas de mots-clés saisis) : `q` contient alors un terme générique. */
   browse?: boolean;
+  /** Texte enrichi pour les moteurs généralistes (« carte graphique RTX 5090 » pour « 5090 »). */
+  searchText?: string;
+  /** Âge maximal accepté pour une réponse en cache (aperçu « temps réel »). */
+  maxAgeMs?: number;
 }
 
 export interface Connector {
@@ -20,6 +24,8 @@ export interface Connector {
   merchantId: string;
   /** Source multi-marchands (Google Shopping…) : interrogée quel que soit le filtre marchand. */
   aggregator?: boolean;
+  /** Source interrogée en direct (page de recherche du marchand) : rafraîchie à l'ouverture de l'aperçu. */
+  live?: boolean;
   enabled(): boolean;
   search(query: ConnectorQuery, signal: AbortSignal): Promise<Offer[]>;
   /** Préchargement (ex. téléchargement d'un flux). Optionnel. */

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { config, env } from './config.js';
 import { normalizeText } from './search/normalize.js';
 
-export type MerchantKind = 'amazon' | 'aliexpress' | 'ebay' | 'feed' | 'shopify' | 'woocommerce' | 'google-shopping';
+export type MerchantKind = 'amazon' | 'aliexpress' | 'ebay' | 'feed' | 'shopify' | 'woocommerce' | 'google-shopping' | 'scrape';
 
 const STORE_KINDS = ['feed', 'shopify', 'woocommerce'] as const;
 
@@ -24,7 +24,10 @@ export interface MerchantDefinition {
   currency?: string;
   /** Garder tout le catalogue, même hors high-tech. */
   keepAll?: boolean;
-  /** Modèle d'URL de recherche sur le site marchand, utilisé par le catalogue de démo. */
+  /**
+   * Modèle d'URL de recherche sur le site marchand ({q} = requête), vérifié par une vraie requête
+   * (réponse 200 avec résultats, modèle déclaré par le site ou archive web). Sans {q} : non vérifié.
+   */
   searchUrl: string;
   notes?: string;
 }
@@ -47,13 +50,28 @@ const BUILTIN: MerchantDefinition[] = [
   { id: 'boulanger', name: 'Boulanger', website: 'https://www.boulanger.com', country: 'FR', refurbished: true, kind: 'feed', searchUrl: 'https://www.boulanger.com/resultats?tr={q}' },
   { id: 'darty', name: 'Darty', website: 'https://www.darty.com', country: 'FR', refurbished: true, kind: 'feed', searchUrl: 'https://www.darty.com/nav/recherche?text={q}' },
   { id: 'materielnet', name: 'Materiel.net', website: 'https://www.materiel.net', country: 'FR', refurbished: false, kind: 'feed', searchUrl: 'https://www.materiel.net/recherche/{q}/' },
-  { id: 'topachat', name: 'TopAchat', website: 'https://www.topachat.com', country: 'FR', refurbished: false, kind: 'feed', searchUrl: 'https://www.topachat.com/pages/recherche.php?mc={q}' },
-  { id: 'rueducommerce', name: 'Rue du Commerce', website: 'https://www.rueducommerce.fr', country: 'FR', refurbished: true, kind: 'feed', searchUrl: 'https://www.rueducommerce.fr/r/{q}.html' },
-  { id: 'grosbill', name: 'Grosbill', website: 'https://www.grosbill.com', country: 'FR', refurbished: false, kind: 'feed', searchUrl: 'https://www.grosbill.com/catv2.cgi?mode=recherche&recherche={q}' },
-  { id: 'visiodirect', name: 'Visiodirect', website: 'https://www.visiodirect.net', country: 'FR', refurbished: true, kind: 'feed', searchUrl: 'https://www.visiodirect.net/recherche?search_query={q}' },
-  { id: '1fotrade', name: '1fotrade', website: 'https://www.1fotrade.com', country: 'FR', refurbished: true, kind: 'feed', searchUrl: 'https://www.1fotrade.com/recherche?controller=search&s={q}', notes: 'Spécialiste du matériel informatique reconditionné.' },
-  { id: 'certideal', refurbishedOnly: true, name: 'Certideal', website: 'https://www.certideal.com', country: 'FR', refurbished: true, kind: 'feed', searchUrl: 'https://www.certideal.com/recherche?search_query={q}' },
+  { id: 'topachat', name: 'TopAchat', website: 'https://www.topachat.com', country: 'FR', refurbished: false, kind: 'feed', searchUrl: 'https://www.topachat.com/search/{q}' },
+  { id: 'rueducommerce', name: 'Rue du Commerce', website: 'https://www.rueducommerce.fr', country: 'FR', refurbished: true, kind: 'feed', searchUrl: 'https://www.rueducommerce.fr/recherche/{q}/' },
+  { id: 'grosbill', name: 'Grosbill', website: 'https://www.grosbill.com', country: 'FR', refurbished: false, kind: 'feed', searchUrl: 'https://www.grosbill.com/produit.aspx?q={q}' },
+  { id: 'visiodirect', name: 'Visiodirect', website: 'https://www.visiodirect.net', country: 'FR', refurbished: true, kind: 'feed', searchUrl: 'https://www.visiodirect.net' },
+  { id: '1fotrade', name: '1fotrade', website: 'https://www.1fotrade.com', country: 'FR', refurbished: true, kind: 'feed', searchUrl: 'https://www.1fotrade.com/search/{q}/', notes: 'Spécialiste du matériel informatique reconditionné.' },
+  { id: 'certideal', refurbishedOnly: true, name: 'Certideal', website: 'https://www.certideal.com', country: 'FR', refurbished: true, kind: 'feed', searchUrl: 'https://www.certideal.com' },
   { id: 'refurbed', refurbishedOnly: true, name: 'refurbed', website: 'https://www.refurbed.fr', country: 'FR', refurbished: true, kind: 'feed', searchUrl: 'https://www.refurbed.fr/search/?query={q}' },
+  // Enseignes sans flux connu : prix lus sur leur page de recherche publique quand elles l'acceptent (connectors/scrape).
+  ...([
+    ['alternate', 'Alternate', 'https://www.alternate.fr', 'https://www.alternate.fr/listing.xhtml?q={q}'],
+    ['cybertek', 'Cybertek', 'https://www.cybertek.fr', 'https://www.cybertek.fr/boutique/produit.aspx?q={q}'],
+    ['infomaxparis', 'Infomax Paris', 'https://infomaxparis.com', 'https://infomaxparis.com/fr/recherche?search_query={q}'],
+    ['pccomponentes', 'PcComponentes', 'https://www.pccomponentes.fr', 'https://www.pccomponentes.fr'],
+    ['caseking', 'Caseking', 'https://www.caseking.de/fr', 'https://www.caseking.de/fr'],
+    ['galaxus', 'Galaxus', 'https://www.galaxus.fr', 'https://www.galaxus.fr'],
+    ['carrefour', 'Carrefour', 'https://www.carrefour.fr', 'https://www.carrefour.fr'],
+    ['auchan', 'Auchan', 'https://www.auchan.fr', 'https://www.auchan.fr/recherche?text={q}'],
+    ['cultura', 'Cultura', 'https://www.cultura.com', 'https://www.cultura.com/search/results?search_query={q}'],
+    ['joybuy', 'Joybuy', 'https://www.joybuy.fr', 'https://www.joybuy.fr'],
+    ['achatmoinscher', 'AchatMoinsCher', 'https://www.achatmoinscher.com', 'https://www.achatmoinscher.com'],
+    ['bixoto', 'Bixoto', 'https://www.bixoto.com', 'https://www.bixoto.com'],
+  ] as const).map(([id, name, website, searchUrl]): MerchantDefinition => ({ id, name, website, country: 'FR', refurbished: false, kind: 'scrape', searchUrl })),
 ];
 
 function feedEnvKey(id: string): string {
@@ -175,6 +193,7 @@ export function requiredEnvFor(m: MerchantDefinition): string[] {
       return ['SERPER_API_KEY', 'SEARCHAPI_API_KEY', 'SERPAPI_API_KEY'];
     case 'shopify':
     case 'woocommerce':
+    case 'scrape':
       return [];
   }
 }

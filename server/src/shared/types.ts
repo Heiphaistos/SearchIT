@@ -49,7 +49,16 @@ export interface Category {
   keywords: string[];
 }
 
-export type ConnectionType = 'api' | 'affiliate-feed' | 'public-store' | 'aggregator' | 'demo';
+export type ConnectionType = 'api' | 'affiliate-feed' | 'public-store' | 'aggregator' | 'public-search' | 'demo';
+
+/** État de la collecte sur la page de recherche publique d'un marchand. */
+export interface ScrapeState {
+  status: 'active' | 'blocked' | 'robots' | 'unavailable';
+  /** Explication lisible (« robots.txt interdit /recherche/ », « HTTP 403 : protection anti-robot »…). */
+  detail?: string;
+  /** Fin de la pause après un blocage (ISO 8601). */
+  pausedUntil?: string;
+}
 
 export interface MerchantInfo {
   id: string;
@@ -64,6 +73,10 @@ export interface MerchantInfo {
   /** Variables d'environnement nécessaires pour activer le marchand. */
   requiredEnv: string[];
   notes?: string;
+  /** Page de recherche publique du site ({q} = requête), vérifiée à la main. */
+  searchUrl?: string;
+  /** Collecte des prix sur la page de recherche publique, si le marchand est concerné. */
+  scrape?: ScrapeState;
 }
 
 export interface Offer {
@@ -208,9 +221,24 @@ export interface ProductGroup {
   unitPrice?: UnitPrice;
   /** Produit correspondant dans le catalogue de référence (caractéristiques, prix de lancement). */
   reference?: ReferenceInfo;
+  /** Rapport qualité-prix, absent faute de donnée fiable. */
+  value?: ValueScore;
 }
 
-export type SortKey = 'relevance' | 'price-asc' | 'price-desc' | 'savings' | 'offers' | 'unit-price';
+export type SortKey = 'relevance' | 'price-asc' | 'price-desc' | 'savings' | 'offers' | 'unit-price' | 'value';
+
+/**
+ * Rapport qualité-prix. `performance` : indice PassMark de la puce (G3D Mark / CPU Mark) pour 100 € ;
+ * `rating` : note moyenne × log10(1 + nombre d'avis) pour 100 €.
+ */
+export interface ValueScore {
+  method: 'performance' | 'rating';
+  score: number;
+  /** Indice de performance (méthode `performance`) ou note moyenne (méthode `rating`). */
+  basis: number;
+  /** Nombre d'avis (méthode `rating`). */
+  reviews?: number;
+}
 
 export interface SearchParams {
   /** Mots-clés. Peut être vide si `category` est fourni (navigation par catégorie). */
