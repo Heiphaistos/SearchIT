@@ -138,12 +138,15 @@ export function parseDelivery(delivery: string | undefined): number | null {
   return /\d/.test(delivery) ? parsePrice(delivery) : null;
 }
 
+/** Places de marché de revente entre particuliers : leurs annonces sont de l'occasion, même sans mention. */
+const RESALE_MARKETS = /\b(stockx|vinted|leboncoin|selency|label emma[uü]s)\b/i;
+
 export function shoppingItemToOffer(item: ShoppingItem): Offer | null {
   const price = item.extractedPrice ?? parsePrice(item.price);
   if (!item.title || !item.url || price === null || price <= 0) return null;
   const merchant = resolveMerchant(item.merchant || 'Google Shopping');
   const currency = typeof item.price === 'string' ? (/\$|USD/.test(item.price) ? 'USD' : /£|GBP/.test(item.price) ? 'GBP' : 'EUR') : 'EUR';
-  const parsedCondition = parseCondition(item.condition, item.title);
+  const parsedCondition = RESALE_MARKETS.test(item.merchant ?? '') ? 'used' : parseCondition(item.condition, item.title);
   return makeOffer({
     merchantId: merchant.id,
     merchantName: merchant.name,

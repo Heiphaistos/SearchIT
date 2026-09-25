@@ -69,6 +69,11 @@ describe('Google Shopping', () => {
     expect(shoppingItemToOffer({ title: 'RTX 5070', merchant: 'Newegg', url: 'https://n.test', price: '$549.99' })!.currency).toBe('USD');
   });
 
+  it("classe en occasion les annonces des places de marché de revente", () => {
+    const offer = shoppingItemToOffer({ title: 'NVIDIA GeForce RTX 5070 Founders Edition', merchant: 'StockX', url: 'https://stockx.test', price: '1 334,00 €' });
+    expect(offer!.condition).toBe('used');
+  });
+
   it('lit les prix au format français (espaces insécables compris)', () => {
     expect(parsePrice('374,00 €')).toBe(374);
     expect(parsePrice('1 234,56 €')).toBe(1234.56);
