@@ -1,4 +1,4 @@
-import type { CatalogItem, CatalogListResponse, Category, CategoryGroup, CategoryId, Deal, LookupRequest, ReferenceInfo, LookupResponse, MerchantInfo, SearchParams, SearchResponse } from '@shared/types';
+import type { CatalogItem, CatalogListResponse, Category, CategoryGroup, CategoryId, Deal, LookupRequest, ReferenceInfo, LookupResponse, MerchantInfo, ProductGroup, SearchParams, SearchResponse } from '@shared/types';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -34,6 +34,12 @@ export const api = {
   search: (p: SearchParams, signal?: AbortSignal) => request<SearchResponse>(`/api/search?${searchParamsToQuery(p)}`, { signal }),
   lookup: (body: LookupRequest) =>
     request<LookupResponse>('/api/lookup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
+  /** Aperçu d'un produit : prix relus chez les marchands si le relevé est ancien. */
+  refresh: (p: { q: string; category?: string; key: string; title: string }, signal?: AbortSignal) => {
+    const qs = new URLSearchParams({ q: p.q, key: p.key, title: p.title });
+    if (p.category) qs.set('category', p.category);
+    return request<{ group: ProductGroup | null; refreshedAt: string }>(`/api/refresh?${qs}`, { signal });
+  },
   health: () => request<{ status: string; demo: boolean }>('/api/health'),
   merchants: () => request<{ demo: boolean; merchants: Array<MerchantInfo & { details?: Record<string, unknown> }> }>('/api/merchants'),
   catalog: (params: Record<string, string | number | undefined>, signal?: AbortSignal) => {

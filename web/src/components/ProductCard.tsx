@@ -1,12 +1,13 @@
 import { getCategory } from '@shared/categories';
 import type { Condition, Offer, ProductGroup } from '@shared/types';
-import { Check, ChevronDown, ExternalLink, FileText, ListPlus, Scale, Star, Store, TrendingDown } from 'lucide-react';
+import { Check, ChevronDown, Eye, ExternalLink, FileText, Gauge, ListPlus, Scale, Star, Store, TrendingDown } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { CONDITION_META, formatPrice, formatShipping, plural } from '../lib/format';
 import { compareStore, MAX_COMPARE, toggleCompare } from '../lib/compare';
 import { addGroupToList, listStore } from '../lib/list';
 import { CategoryIcon } from './CategoryIcon';
 import { PriceHistoryBadge } from './PriceHistory';
+import { OfferPreview } from './OfferPreview';
 import { ProductSheetPanel } from './ProductSheet';
 import { Link } from 'react-router-dom';
 import { GROUP_STYLE } from '../lib/groups';
@@ -148,8 +149,10 @@ function sheetQueryFor(group: ProductGroup): string | null {
   return null;
 }
 
-export function ProductCard({ group }: { group: ProductGroup }) {
+/** `query` : recherche d'origine, relancée par l'aperçu pour actualiser les prix. */
+export function ProductCard({ group, query, category }: { group: ProductGroup; query?: string; category?: string }) {
   const [panel, setPanel] = useState<'offers' | 'sheet' | null>(null);
+  const [preview, setPreview] = useState(false);
   const sheetQuery = sheetQueryFor(group);
   const hasSheet = Boolean(group.reference || sheetQuery);
   const inList = listStore.use().some((i) => i.ref === group.key);
@@ -160,6 +163,7 @@ export function ProductCard({ group }: { group: ProductGroup }) {
 
   return (
     <article className="card animate-fade-in transition hover:shadow-(--shadow-lift)">
+      {preview && <OfferPreview group={group} query={query ?? group.title} category={category} onClose={() => setPreview(false)} />}
       <div className="flex flex-col gap-4 p-4 sm:flex-row sm:p-5">
         <div className="size-24 shrink-0 overflow-hidden rounded-xl bg-white ring-1 ring-slate-100 dark:bg-slate-800 dark:ring-slate-800 sm:size-28">
           <ProductImage group={group} />
@@ -205,6 +209,19 @@ export function ProductCard({ group }: { group: ProductGroup }) {
             <span>
               {plural(group.offers.length, 'offre')} chez {plural(group.merchantCount, 'marchand')}
             </span>
+            {group.value && (
+              <span
+                className="inline-flex items-center gap-1"
+                title={
+                  group.value.method === 'performance'
+                    ? `Indice PassMark de la puce (${group.value.basis.toLocaleString('fr-FR')}) pour 100 € du meilleur prix`
+                    : `Note moyenne ${group.value.basis.toLocaleString('fr-FR')}/5 sur ${group.value.reviews?.toLocaleString('fr-FR')} avis, pondérée, pour 100 €`
+                }
+              >
+                <Gauge className="size-3.5" /> qualité-prix {group.value.score.toLocaleString('fr-FR')}
+                {group.value.method === 'performance' ? ' pts PassMark / 100 €' : ' (avis) / 100 €'}
+              </span>
+            )}
             {group.savingsPercent >= 5 && group.offers.length > 1 && (
               <span className="inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
                 <TrendingDown className="size-3.5" /> jusqu’à {group.savingsPercent} % d’écart de prix
@@ -238,6 +255,10 @@ export function ProductCard({ group }: { group: ProductGroup }) {
             >
               <Scale className="size-4" />
               <span className="sr-only">Comparer</span>
+            </button>
+            <button onClick={() => setPreview(true)} className="btn-outline px-3" title="Aperçu de toutes les offres, prix actualisés">
+              <Eye className="size-4" />
+              <span className="sr-only xl:not-sr-only">Aperçu</span>
             </button>
             <WatchButton group={group} />
             <button

@@ -8,10 +8,18 @@ import { usePageMeta } from '../lib/meta';
 
 type Merchant = MerchantInfo & { details?: Record<string, unknown> };
 
+const SCRAPE_LABELS: Record<NonNullable<MerchantInfo['scrape']>['status'], { label: string; className: string }> = {
+  active: { label: 'Collecte active', className: 'text-emerald-600 dark:text-emerald-400' },
+  blocked: { label: 'Bloquée (anti-robot)', className: 'text-red-600 dark:text-red-400' },
+  robots: { label: 'Refusée par robots.txt', className: 'text-slate-500 dark:text-slate-400' },
+  unavailable: { label: 'Non collectée', className: 'text-slate-500 dark:text-slate-400' },
+};
+
 const CONNECTION_LABELS: Record<MerchantInfo['connection'], string> = {
   api: 'API officielle',
   'affiliate-feed': 'Flux d’affiliation',
   'public-store': 'Boutique (catalogue public)',
+  'public-search': 'Page de recherche publique',
   aggregator: 'Agrégateur multi-marchands',
   demo: 'Démo',
 };
@@ -23,8 +31,8 @@ const FREE_SOURCES = [
     env: 'SERPER_API_KEY',
     url: 'https://serper.dev',
     effort: '2 min · e-mail',
-    free: '2 500 requêtes offertes',
-    text: 'La source la plus rentable : une seule clé remonte les prix de centaines de marchands français (Fnac, LDLC, Boulanger, Darty, Back Market, Leclerc…). Résultats mis en cache (SERPER_CACHE_HOURS) et quota journalier (SERPER_DAILY_LIMIT) pour ménager les crédits.',
+    free: '2 500 requêtes offertes (non renouvelables)',
+    text: 'La source la plus rentable : une seule clé remonte les prix de centaines de marchands français (Fnac, LDLC, Boulanger, Darty, Back Market, Leclerc…). Résultats mis en cache (SERPER_CACHE_HOURS) et quota journalier (SERPER_DAILY_LIMIT, 40 par défaut) pour ménager les crédits. Une fois épuisés, le site continue avec les autres sources.',
     highlight: true,
   },
   { name: 'SearchApi.io – Google Shopping', env: 'SEARCHAPI_API_KEY', url: 'https://www.searchapi.io', effort: '2 min · e-mail', free: '100 requêtes offertes', text: 'Fournisseur de secours quand le quota Serper est atteint.' },
@@ -147,6 +155,13 @@ export function SourcesPage() {
                         </span>
                       )}
                       {typeof m.details?.lastError === 'string' && <p className="mt-1 text-xs text-red-600">{m.details.lastError}</p>}
+                      {m.scrape && (
+                        <p className={`mt-1 text-xs ${SCRAPE_LABELS[m.scrape.status].className}`}>
+                          {SCRAPE_LABELS[m.scrape.status].label}
+                          {m.scrape.detail && ` : ${m.scrape.detail}`}
+                          {m.scrape.pausedUntil && ` (pause jusqu’à ${new Date(m.scrape.pausedUntil).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })})`}
+                        </p>
+                      )}
                     </td>
                     <td className="hidden px-4 py-3 md:table-cell">
                       <div className="flex flex-wrap gap-1">

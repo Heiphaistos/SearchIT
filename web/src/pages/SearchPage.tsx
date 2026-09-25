@@ -14,6 +14,7 @@ const SORTS: Array<{ id: SortKey; label: string }> = [
   { id: 'relevance', label: 'Pertinence' },
   { id: 'price-asc', label: 'Prix croissant' },
   { id: 'price-desc', label: 'Prix décroissant' },
+  { id: 'value', label: 'Meilleur rapport qualité-prix' },
   { id: 'savings', label: 'Plus gros écarts de prix' },
   { id: 'offers', label: 'Nombre d’offres' },
   { id: 'unit-price', label: 'Prix au To / au Go' },
@@ -164,6 +165,14 @@ export function SearchPage() {
         </div>
       </div>
 
+      {params.sort === 'value' && (
+        <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+          Cartes graphiques et processeurs : indice de performance PassMark de la puce (G3D Mark, CPU Mark) pour 100 € du meilleur prix, livraison
+          comprise. Autres produits : note moyenne × log10(1 + nombre d’avis) pour 100 €. Les produits sans donnée fiable sont classés à la fin, du moins cher au
+          plus cher. Les prix sont toujours comparés livraison comprise quand elle est connue.
+        </p>
+      )}
+
       {activeFilters.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2">
           {activeFilters.map((f) => (
@@ -190,7 +199,7 @@ export function SearchPage() {
           {error && <ErrorBox message={error} />}
           {loading && !data && <ResultSkeleton />}
           <div className={`space-y-4 transition ${loading && data ? 'opacity-50' : ''}`}>
-            {data?.groups.map((g) => <ProductCard key={g.key} group={g} />)}
+            {data?.groups.map((g) => <ProductCard key={g.key} group={g} query={params.q} category={params.category} />)}
           </div>
           {data && !data.groups.length && !loading && (
             <EmptyState icon={<PackageSearch className="size-6" />} title="Aucun produit trouvé">
