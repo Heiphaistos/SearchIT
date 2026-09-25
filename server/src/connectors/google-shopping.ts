@@ -5,7 +5,7 @@ import { resolveMerchant } from '../merchants.js';
 import { normalizeText, parseCondition, parsePrice } from '../search/normalize.js';
 import { makeOffer } from '../search/offer.js';
 import type { Offer } from '../shared/types.js';
-import { fetchJson, type Connector, type ConnectorQuery } from './types.js';
+import { ConnectorError, fetchJson, type Connector, type ConnectorQuery } from './types.js';
 
 // Google Shopping via une API SERP (offres gratuites) : un seul appel renvoie les prix
 // de tous les marchands référencés par Google en France (Fnac, LDLC, Boulanger,
@@ -15,7 +15,9 @@ import { fetchJson, type Connector, type ConnectorQuery } from './types.js';
 //   - Serper.dev    SERPER_API_KEY      2 500 requêtes offertes à l'inscription
 //   - SearchApi.io  SEARCHAPI_API_KEY   100 requêtes offertes
 //   - SerpApi       SERPAPI_API_KEY     offre gratuite mensuelle
-// Un quota journalier et un cache disque de 24 h évitent d'épuiser les crédits.
+// Un quota journalier et un cache disque de 24 h évitent d'épuiser les crédits. Ces offres sont
+// gratuites mais non renouvelables : une fois les crédits épuisés, la source se tait et le site
+// continue avec les autres (boutiques publiques, pages de recherche des marchands).
 
 export interface ShoppingItem {
   title: string;
@@ -88,7 +90,7 @@ function createProviders(): Provider[] {
     {
       id: 'serper',
       key: env('SERPER_API_KEY'),
-      dailyLimit: limit('SERPER_DAILY_LIMIT', 80),
+      dailyLimit: limit('SERPER_DAILY_LIMIT', 40),
       async fetch(q, signal) {
         const data = await fetchJson<SerperResponse>('https://google.serper.dev/shopping', {
           method: 'POST',
@@ -141,7 +143,7 @@ export function parseDelivery(delivery: string | undefined): number | null {
 /** Places de marché de revente entre particuliers : leurs annonces sont de l'occasion, même sans mention. */
 const RESALE_MARKETS = /\b(stockx|vinted|leboncoin|selency|label emma[uü]s)\b/i;
 
-export function shoppingItemToOffer(item: ShoppingItem): Offer | null {
+export function shoppingItemToOffer(item: ShoppingItem, fetchedAt?: number): Offer | null {
   const price = item.extractedPrice ?? parsePrice(item.price);
   if (!item.title || !item.url || price === null || price <= 0) return null;
   const merchant = resolveMerchant(item.merchant || 'Google Shopping');
@@ -163,6 +165,7 @@ export function shoppingItemToOffer(item: ShoppingItem): Offer | null {
     rating: item.rating,
     reviewCount: item.reviews,
     via: 'google-shopping',
+    updatedAt: fetchedAt ? new Date(fetchedAt).toISOString() : undefined,
   });
 }
 
@@ -180,13 +183,13 @@ class DiskCache {
     }
   }
 
-  get(key: string): ShoppingItem[] | undefined {
+  get(key: string): { at: number; items: ShoppingItem[] } | undefined {
     const hit = this.data.get(key);
-    return hit && Date.now() - hit.at < this.ttlMs ? hit.items : undefined;
+    return hit && Date.now() - hit.at < this.ttlMs ? hit : undefined;
   }
 
-  set(key: string, items: ShoppingItem[]): void {
-    this.data.set(key, { at: Date.now(), items });
+  set(key: string, entry: { at: number; items: ShoppingItem[] }): void {
+    this.data.set(key, entry);
     this.writeTimer ??= setTimeout(() => {
       this.writeTimer = null;
       for (const [k, v] of this.data) if (Date.now() - v.at >= this.ttlMs) this.data.delete(k);
@@ -203,24 +206,28 @@ export function createGoogleShoppingConnector(): Connector {
   const cache = new DiskCache(path.join(config.cacheDir, 'google-shopping.json'), cacheHours * 3_600_000);
   const usage = new Map<string, { day: string; count: number }>();
   // Requêtes identiques en vol (ex. plusieurs articles d'un même lot) : un seul appel payant.
-  const inFlight = new Map<string, Promise<ShoppingItem[]>>();
+  const inFlight = new Map<string, Promise<ShoppingItem[] | null>>();
 
-  const fetchItems = async (q: string, signal: AbortSignal): Promise<ShoppingItem[]> => {
+  /** `null` : tous les fournisseurs ont épuisé leur quota ou leurs crédits (pas une panne). */
+  const fetchItems = async (q: string, signal: AbortSignal): Promise<ShoppingItem[] | null> => {
     const errors: string[] = [];
     for (const provider of providers) {
-      if (used(provider) >= provider.dailyLimit) {
-        errors.push(`${provider.id} : quota journalier atteint (${provider.dailyLimit})`);
-        continue;
-      }
+      if (used(provider) >= provider.dailyLimit) continue;
       usage.set(provider.id, { day: today(), count: used(provider) + 1 });
       try {
         return await provider.fetch(q, signal);
       } catch (err) {
+        // Crédits gratuits épuisés : fournisseur mis de côté jusqu'au lendemain.
+        if (err instanceof ConnectorError && [400, 401, 402, 403, 429].includes(err.status ?? 0) && /credit|quota|balance|limit/i.test(err.message)) {
+          usage.set(provider.id, { day: today(), count: provider.dailyLimit });
+          continue;
+        }
         errors.push(`${provider.id} : ${err instanceof Error ? err.message : err}`);
         if (signal.aborted) break;
       }
     }
-    throw new Error(errors.join(' ; ') || 'Aucun fournisseur disponible');
+    if (errors.length) throw new Error(errors.join(' ; '));
+    return null;
   };
 
   const today = () => new Date().toISOString().slice(0, 10);
@@ -239,20 +246,23 @@ export function createGoogleShoppingConnector(): Connector {
       cacheHours,
     }),
     async search(query: ConnectorQuery, signal: AbortSignal): Promise<Offer[]> {
-      const q = query.q.trim();
+      const q = (query.searchText ?? query.q).trim();
       const key = normalizeText(q);
       if (key.length < 2) return [];
-      let items = cache.get(key);
-      if (!items) {
+      let entry = cache.get(key);
+      if (!entry) {
         let pending = inFlight.get(key);
         if (!pending) {
           pending = fetchItems(q, signal).finally(() => inFlight.delete(key));
           inFlight.set(key, pending);
         }
-        items = await pending;
-        cache.set(key, items);
+        const items = await pending;
+        if (!items) return [];
+        entry = { at: Date.now(), items };
+        cache.set(key, entry);
       }
-      return items.map(shoppingItemToOffer).filter((o): o is Offer => o !== null);
+      const at = entry.at;
+      return entry.items.map((item) => shoppingItemToOffer(item, at)).filter((o): o is Offer => o !== null);
     },
   };
 }
