@@ -27,6 +27,8 @@ import { unitPriceFor } from './unit-price.js';
 import { MIN_RELEVANCE, extractConditionIntent, prepareQuery, relevance } from './relevance.js';
 
 const DEFAULT_LOOKUP_CONDITIONS: Condition[] = ['new', 'refurbished'];
+// Écart de pertinence toléré entre produits jugés équivalents pour une recherche de prix.
+const LOOKUP_RELEVANCE_TOLERANCE = 0.05;
 
 const CONDITION_LABELS: Record<Condition, string> = { new: 'Neuf', refurbished: 'Reconditionné', used: 'Occasion' };
 
@@ -297,12 +299,23 @@ export class SearchEngine {
       sort: 'relevance',
       pageSize: 10,
     }, { track: false });
-    const byRelevance = [...response.groups].sort((a, b) => b.relevance - a.relevance || a.bestOffer.totalPrice - b.bestOffer.totalPrice);
-    const group = (gtin && response.groups.find((g) => g.gtin === gtin)) || byRelevance[0];
+    // Produits aussi pertinents que le meilleur (« RTX 5070 » : Dual, Ventus, Shadow…) : on retient le moins cher,
+    // et leurs offres servent d'alternatives.
+    const topRelevance = Math.max(0, ...response.groups.map((g) => g.relevance));
+    const candidates = response.groups
+      .filter((g) => g.relevance >= topRelevance - LOOKUP_RELEVANCE_TOLERANCE)
+      .sort((a, b) => a.bestOffer.totalPrice - b.bestOffer.totalPrice || b.relevance - a.relevance);
+    const gtinGroup = gtin ? response.groups.find((g) => g.gtin === gtin) : undefined;
+    const group = gtinGroup || candidates[0];
     if (!group) {
       return { result: { ref: item.ref, query: item.query, quantity, found: false, alternatives: [], lineTotal: 0 } };
     }
     const best = group.bestOffer;
+    // Une offre plus de deux fois plus chère que la meilleure est presque toujours un autre produit (PC complet, lot…).
+    const pool = gtinGroup ? group.offers : candidates.flatMap((g) => g.offers);
+    const others = pool
+      .filter((o) => o.id !== best.id && o.totalPrice <= best.totalPrice * 2)
+      .sort((a, b) => a.totalPrice - b.totalPrice);
     return {
       group,
       result: {
@@ -313,7 +326,7 @@ export class SearchEngine {
         best,
         bestNew: group.bestNew,
         bestRefurbished: group.bestRefurbished,
-        alternatives: group.offers.filter((o) => o.id !== best.id).slice(0, alternatives),
+        alternatives: others.slice(0, alternatives),
         lineTotal: round2(best.price * quantity + (best.shipping ?? 0)),
       },
     };
