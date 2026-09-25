@@ -1,27 +1,32 @@
 [
   {
-    "name": "Nothing (boutique officielle)",
-    "kind": "shopify",
-    "storeUrl": "https://nothing.tech",
-    "notes": "Smartphones, écouteurs et accessoires Nothing / CMF. Catalogue Shopify public."
-  },
-  {
-    "name": "Fairphone (boutique officielle)",
-    "kind": "shopify",
-    "storeUrl": "https://shop.fairphone.com",
-    "refurbished": true,
-    "notes": "Smartphones Fairphone neufs et reconditionnés, pièces détachées. Catalogue Shopify public."
-  },
-  {
     "name": "UGREEN Europe",
     "kind": "shopify",
     "storeUrl": "https://eu.ugreen.com",
     "notes": "Chargeurs GaN, câbles, hubs USB-C, NAS. Catalogue Shopify public."
   },
   {
-    "name": "Ledger",
+    "name": "Anker France",
     "kind": "shopify",
-    "storeUrl": "https://shop.ledger.com",
-    "notes": "Portefeuilles matériels. Catalogue Shopify public."
+    "storeUrl": "https://fr.anker.com",
+    "notes": "Chargeurs, batteries externes, câbles, stations d'accueil. Catalogue Shopify public, prix en euros."
+  },
+  {
+    "name": "soundcore France",
+    "kind": "shopify",
+    "storeUrl": "https://fr.soundcore.com",
+    "notes": "Écouteurs et casques soundcore (Anker). Catalogue Shopify public, prix en euros."
+  },
+  {
+    "name": "Keychron France",
+    "kind": "shopify",
+    "storeUrl": "https://www.keychron.fr",
+    "notes": "Claviers mécaniques et souris Keychron. Catalogue Shopify public, prix en euros."
+  },
+  {
+    "name": "Shokz France",
+    "kind": "shopify",
+    "storeUrl": "https://fr.shokz.com",
+    "notes": "Casques à conduction osseuse Shokz. Catalogue Shopify public, prix en euros."
   }
 ]
