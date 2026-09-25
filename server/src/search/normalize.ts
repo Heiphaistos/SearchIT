@@ -108,6 +108,9 @@ const STRONG_ACCESSORY: Array<[string, CategoryId]> = [
   ['case for', 'accessory'], ['cover for', 'accessory'], ['sacoche', 'accessory'],
   ['cable', 'cable'], ['cordon', 'cable'], ['adaptateur', 'cable'], ['adapter', 'cable'],
   ['chargeur', 'charger'], ['charger', 'charger'], ['power bank', 'charger'], ['batterie externe', 'charger'],
+  // Blocs à eau et supports « pour RTX 5090 » : ce ne sont pas des cartes graphiques.
+  ['watercooling', 'cooling'], ['waterblock', 'cooling'], ['water block', 'cooling'], ['bloc eau', 'cooling'], ['backplate', 'cooling'],
+  ['riser', 'cable'], ['support carte graphique', 'accessory'], ['gpu support', 'accessory'], ['anti sag', 'accessory'],
 ];
 
 /**

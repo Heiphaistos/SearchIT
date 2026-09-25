@@ -62,6 +62,10 @@ describe('detectCategory', () => {
     ['Disque dur Seagate IronWolf 8 To', 'hdd'],
     ['Chargeur Anker 65W GaN', 'charger'],
     ['Samsung Galaxy Tab S10', 'tablet'],
+    ['Alphacool Core Geforce RTX 5090 Reference, Watercooling', 'cooling'],
+    ['EK-Quantum Vector² FE RTX 5090 D-RGB waterblock', 'cooling'],
+    ['Support carte graphique anti sag RTX 5090', 'accessory'],
+    ['MSI GeForce RTX 5090 32G SUPRIM LIQUID SOC', 'gpu'],
   ])('%s → %s', (title, expected) => {
     expect(detectCategory(title)).toBe(expected);
   });
