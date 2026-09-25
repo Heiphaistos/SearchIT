@@ -19,6 +19,9 @@ Production : **https://searchit.heiphaistos.org**
 - **Comparateur** : jusqu'à 4 produits côte à côte (prix neuf, reconditionné, occasion, prix au To, caractéristiques Icecat).
 - **Tableau de bord `/admin`** (jeton `ADMIN_TOKEN`) : recherches, recherches populaires, quotas Google Shopping, état des sources et dernières erreurs.
 - **Historique des prix** : mini-graphique et badge « prix le plus bas depuis N jours ». Seules les offres réelles sont enregistrées, jamais les prix de démo.
+- **Requêtes courtes** : « 5090 », « 9800x3d » ou « 4070 super » trouvent la bonne puce, sans mélanger Ti, Super, XT, X3D ou K/KF.
+- **Tri « meilleur rapport qualité-prix »** : indice PassMark de la puce pour 100 € (cartes graphiques, processeurs), sinon note × avis pour 100 €.
+- **Aperçu d'un produit** : toutes les offres triées par prix total, date du relevé, actualisation à l'ouverture et liens « Chercher chez » vers les sites marchands.
 - **Prix au To ou au Go** pour les SSD, disques durs, cartes mémoire et la RAM, avec un tri associé.
 - **Autocomplétion** : recherches populaires, titres de produits connus, catégories et recherches récentes.
 - **Ma liste** : lien de partage (sans compte ni stockage serveur), import d'une liste partagée et export CSV compatible Excel.
@@ -36,6 +39,7 @@ Production : **https://searchit.heiphaistos.org**
 | [eBay Browse API](https://developer.ebay.com) | `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET` | Gratuit (5 000 appels/jour) | Neuf, reconditionné et occasion |
 | [AliExpress Affiliate](https://portals.aliexpress.com) | `ALIEXPRESS_*` | Gratuit | Accessoires, câbles, chargeurs |
 | Boutiques **Shopify / WooCommerce** | aucune | Gratuit | Catalogue public complet de chaque boutique (`SHOPIFY_STORES`, `WOOCOMMERCE_STORES`, `server/config/public-stores.json`) |
+| Pages de recherche publiques (TopAchat, Cybertek, Alternate) | aucune (`SCRAPE=on`) | Gratuit | Prix lus sur la page de recherche du site, liens directs vers ses fiches. `robots.txt` respecté, User-Agent SearchIT, 1 requête à la fois et 2 s d'écart par site, pause automatique en cas de blocage, aucun contournement anti-robot. Les enseignes testées et la raison de leur exclusion sont listées dans `server/src/connectors/scrape/sites.ts` et sur la page « Marchands ». |
 | [Open Icecat](https://icecat.biz) | aucune (`ICECAT_USERNAME` facultatif) | Gratuit | Fiches techniques et photos par EAN (bouton « Fiche technique ») |
 | [Taux BCE](https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.fr.html) | aucune | Gratuit | Conversion automatique en euros des prix en $ ou £ |
 
@@ -44,7 +48,7 @@ Les résultats Google Shopping sont mis en cache 24 h sur disque (`SERPER_CACHE_
 Ajouter une boutique Shopify ou WooCommerce :
 
 ```bash
-SHOPIFY_STORES=nothing.tech|Nothing,boutique-recond.fr|Boutique Recond|refurb
+SHOPIFY_STORES=fr.anker.com|Anker France,boutique-recond.fr|Boutique Recond|refurb
 WOOCOMMERCE_STORES=exemple-informatique.fr|Exemple Informatique
 ```
 

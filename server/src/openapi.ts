@@ -39,7 +39,7 @@ export const openApiSpec = {
   openapi: '3.0.3',
   info: {
     title: 'SearchIT API',
-    version: '1.1.0',
+    version: '1.2.0',
     description:
       'Comparateur de prix high-tech multi-marchands (neuf, reconditionné, occasion). ' +
       "L'endpoint /lookup permet à un configurateur de PC d'obtenir en un appel le meilleur prix de chaque composant. " +
