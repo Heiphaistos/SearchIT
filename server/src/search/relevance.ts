@@ -27,6 +27,9 @@ export function extractConditionIntent(q: string): { query: string; conditions: 
 // Déclinaisons d'un modèle : « RTX 5070 » ≠ « RTX 5070 Ti », « iPhone 16 » ≠ « iPhone 16 Pro ».
 export const VARIANT_TOKENS = new Set(['ti', 'super', 'xt', 'xtx', 'pro', 'max', 'plus', 'ultra', 'mini', 'lite', 'fe', 'se', 'air', 'x3d']);
 
+// Marques de puces que les marchands omettent souvent (« ASUS Dual RTX 5070 » sans « NVIDIA GeForce »).
+const OPTIONAL_TOKENS = new Set(['nvidia', 'geforce', 'amd', 'radeon', 'intel', 'arc']);
+
 export interface PreparedQuery {
   tokens: string[];
   numeric: string[];
@@ -51,12 +54,17 @@ export function relevance(query: PreparedQuery, title: string, extra = ''): numb
   const titleTokens = tokenize(`${title} ${extra}`);
   const titleSet = new Set(titleTokens);
   let matched = 0;
+  let counted = 0;
   for (const t of query.tokens) {
+    counted += 1;
     if (titleSet.has(t)) matched += 1;
+    // Marque de la puce (« NVIDIA », « GeForce »…) : souvent absente des titres marchands, on ne la pénalise pas.
+    else if (OPTIONAL_TOKENS.has(t)) counted -= 1;
     else if (t.length >= 2 && titleTokens.some((tt) => tt.startsWith(t) && (!/\d$/.test(t) || !/^\d/.test(tt.slice(t.length))))) matched += 0.85;
     // « 16go » dans la requête et « 16 go » éclaté ailleurs : déjà unifié par tokenize.
   }
-  const coverage = matched / query.tokens.length;
+  if (!counted) return 0;
+  const coverage = matched / counted;
   const numericOk = query.numeric.every((n) => titleSet.has(n) || titleTokens.some((tt) => tt.startsWith(n) && !/^\d/.test(tt.slice(n.length))));
   if (!numericOk) return coverage * 0.3;
   const concision = Math.min(1, query.tokens.length / Math.max(1, titleSet.size));

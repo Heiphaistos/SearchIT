@@ -118,6 +118,14 @@ describe('relevance', () => {
     expect(ti).toBeGreaterThanOrEqual(MIN_RELEVANCE);
   });
 
+  it('ne pénalise pas la marque de la puce absente du titre marchand', () => {
+    const full = prepareQuery('NVIDIA GeForce RTX 5070');
+    expect(relevance(full, 'ASUS Dual GeForce RTX 5070 OC')).toBeGreaterThanOrEqual(MIN_RELEVANCE);
+    expect(relevance(full, 'MSI RTX 5070 12G SHADOW 2X OC')).toBeGreaterThanOrEqual(MIN_RELEVANCE);
+    expect(relevance(prepareQuery('AMD Ryzen 7 9800X3D'), 'Processeur Ryzen 7 9800X3D')).toBeGreaterThanOrEqual(MIN_RELEVANCE);
+    expect(relevance(full, 'MSI RTX 5080 16G')).toBeLessThan(MIN_RELEVANCE);
+  });
+
   it('exige les nombres de la requête', () => {
     expect(relevance(q, 'Carte graphique NVIDIA GeForce RTX 5080')).toBeLessThan(MIN_RELEVANCE);
     expect(relevance(prepareQuery('iphone 15'), 'Apple iPhone 150')).toBeLessThan(MIN_RELEVANCE);
