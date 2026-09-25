@@ -142,10 +142,13 @@ export function parseDelivery(delivery: string | undefined): number | null {
 
 /** Places de marché de revente entre particuliers : leurs annonces sont de l'occasion, même sans mention. */
 const RESALE_MARKETS = /\b(stockx|vinted|leboncoin|selency|label emma[uü]s)\b/i;
+const NON_LATIN_TITLE = /[Ѐ-ӿ֐-ۿ぀-ヿ一-鿿가-힯]/;
 
 export function shoppingItemToOffer(item: ShoppingItem, fetchedAt?: number): Offer | null {
   const price = item.extractedPrice ?? parsePrice(item.price);
   if (!item.title || !item.url || price === null || price <= 0) return null;
+  // Annonce en arabe, hébreu, cyrillique ou CJK : marchand étranger, souvent une pièce détachée mal décrite.
+  if (NON_LATIN_TITLE.test(item.title)) return null;
   const merchant = resolveMerchant(item.merchant || 'Google Shopping');
   const currency = typeof item.price === 'string' ? (/\$|USD/.test(item.price) ? 'USD' : /£|GBP/.test(item.price) ? 'GBP' : 'EUR') : 'EUR';
   const parsedCondition = RESALE_MARKETS.test(item.merchant ?? '') ? 'used' : parseCondition(item.condition, item.title);

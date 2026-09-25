@@ -65,6 +65,8 @@ describe('detectCategory', () => {
     ['Alphacool Core Geforce RTX 5090 Reference, Watercooling', 'cooling'],
     ['EK-Quantum Vector² FE RTX 5090 D-RGB waterblock', 'cooling'],
     ['Support carte graphique anti sag RTX 5090', 'accessory'],
+    ['Alphacool Core pour RTX 5090 Suprim + Vanguard avec BackP', 'cooling'],
+    ['Alphacool ES Geforce RTX 5090 Gaming design 1 emplacement, Dissipateur thermique', 'cooling'],
     ['MSI GeForce RTX 5090 32G SUPRIM LIQUID SOC', 'gpu'],
   ])('%s → %s', (title, expected) => {
     expect(detectCategory(title)).toBe(expected);

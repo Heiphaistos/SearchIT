@@ -74,6 +74,10 @@ describe('Google Shopping', () => {
     expect(offer!.condition).toBe('used');
   });
 
+  it('écarte les annonces au titre non latin', () => {
+    expect(shoppingItemToOffer({ title: 'هيكل بطاقة الرسومات ASUS TUF Gaming GeForce RTX 5090', merchant: 'Microless.com', url: 'https://m.test', price: '344,17 €' })).toBeNull();
+  });
+
   it('lit les prix au format français (espaces insécables compris)', () => {
     expect(parsePrice('374,00 €')).toBe(374);
     expect(parsePrice('1 234,56 €')).toBe(1234.56);
