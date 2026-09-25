@@ -198,6 +198,9 @@ describe('GET /api/catalog', () => {
     expect((await app.inject({ url: '/api/catalog?category=frigo' })).statusCode).toBe(400);
     const search = (await app.inject({ url: '/api/search?q=rtx%205070&pageSize=100' })).json<SearchResponse>();
     expect(search.groups.find((g) => g.reference?.name === 'NVIDIA GeForce RTX 5070')).toBeDefined();
-    expect(search.groups.find((g) => g.reference?.name === 'NVIDIA GeForce RTX 5070 Ti')).toBeDefined();
+    // « RTX 5070 » n'inclut plus les 5070 Ti : autre puce, autre recherche.
+    expect(search.groups.find((g) => g.reference?.name === 'NVIDIA GeForce RTX 5070 Ti')).toBeUndefined();
+    const ti = (await app.inject({ url: '/api/search?q=rtx%205070%20ti&pageSize=100' })).json<SearchResponse>();
+    expect(ti.groups.find((g) => g.reference?.name === 'NVIDIA GeForce RTX 5070 Ti')).toBeDefined();
   });
 });

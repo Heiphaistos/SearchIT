@@ -111,11 +111,11 @@ describe('normalizeGtin / parseBoolean', () => {
 describe('relevance', () => {
   const q = prepareQuery('rtx 5070');
 
-  it('préfère le modèle exact à ses déclinaisons', () => {
+  it('écarte les déclinaisons du modèle demandé (RTX 5070 ≠ RTX 5070 Ti)', () => {
     const exact = relevance(q, 'Carte graphique NVIDIA GeForce RTX 5070 12 Go');
     const ti = relevance(q, 'Carte graphique NVIDIA GeForce RTX 5070 Ti 16 Go');
-    expect(exact).toBeGreaterThan(ti);
-    expect(ti).toBeGreaterThanOrEqual(MIN_RELEVANCE);
+    expect(exact).toBeGreaterThanOrEqual(MIN_RELEVANCE);
+    expect(ti).toBeLessThan(MIN_RELEVANCE);
   });
 
   it('ne pénalise pas la marque de la puce absente du titre marchand', () => {

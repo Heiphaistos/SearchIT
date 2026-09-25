@@ -1,4 +1,5 @@
 import type { Condition } from '../shared/types.js';
+import { CPU_SUFFIXES, GPU_VARIANTS } from './models.js';
 import { normalizeText, numericTokens, tokenize } from './normalize.js';
 
 const CONDITION_INTENTS: Array<[RegExp, Condition]> = [
@@ -66,12 +67,38 @@ export function relevance(query: PreparedQuery, title: string, extra = ''): numb
   if (!counted) return 0;
   const coverage = matched / counted;
   const numericOk = query.numeric.every((n) => titleSet.has(n) || titleTokens.some((tt) => tt.startsWith(n) && !/^\d/.test(tt.slice(n.length))));
-  if (!numericOk) return coverage * 0.3;
-  const concision = Math.min(1, query.tokens.length / Math.max(1, titleSet.size));
   const querySet = new Set(query.tokens);
+  if (!numericOk || otherChip(query.numeric, titleTokens, querySet) || chinaEdition(query.numeric, title)) return coverage * 0.3;
+  const concision = Math.min(1, query.tokens.length / Math.max(1, titleSet.size));
   let variants = 0;
   for (const t of titleSet) if (VARIANT_TOKENS.has(t) && !querySet.has(t)) variants++;
   return Math.round((coverage * 0.88 + concision * 0.12 - variants * 0.06) * 1000) / 1000;
+}
+
+/**
+ * Déclinaison de puce absente de la requête : « 5070 » face à « 5070 Ti » ou « 5070ti »,
+ * « 9600 » face à « 9600X », « 14600k » face à « 14600kf ». C'est un autre produit.
+ */
+function otherChip(numeric: string[], titleTokens: string[], querySet: Set<string>): boolean {
+  for (const n of numeric) {
+    const bare = /^\d+$/.test(n);
+    for (let i = 0; i < titleTokens.length; i++) {
+      const t = titleTokens[i];
+      if (t === n) {
+        for (let j = i + 1; bare && j < titleTokens.length && GPU_VARIANTS.has(titleTokens[j]); j++) if (!querySet.has(titleTokens[j])) return true;
+      } else if (t.startsWith(n) && !querySet.has(t)) {
+        const suffix = t.slice(n.length);
+        if (bare ? GPU_VARIANTS.has(suffix) || CPU_SUFFIXES.has(suffix) : /^\d+[a-z]/.test(n) && /^[a-z0-9]+$/.test(suffix)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/** « RTX 5090 D » (édition chinoise) : « d » est un mot vide pour tokenize, on le cherche dans le texte brut. */
+function chinaEdition(numeric: string[], title: string): boolean {
+  const text = ` ${normalizeText(title)} `;
+  return numeric.some((n) => /^\d{4}$/.test(n) && text.includes(` ${n} d `));
 }
 
 export const MIN_RELEVANCE = 0.72;

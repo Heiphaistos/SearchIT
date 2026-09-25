@@ -19,7 +19,7 @@ import { CATEGORIES, CATEGORY_GROUPS, isCategoryId } from './shared/categories.j
 import type { CatalogSort, CategoryId, Condition, LookupItem, LookupRequest, SearchParams, SortKey } from './shared/types.js';
 
 const CONDITIONS: Condition[] = ['new', 'refurbished', 'used'];
-const SORTS: SortKey[] = ['relevance', 'price-asc', 'price-desc', 'savings', 'offers', 'unit-price'];
+const SORTS: SortKey[] = ['relevance', 'price-asc', 'price-desc', 'savings', 'offers', 'unit-price', 'value'];
 
 class BadRequest extends Error {}
 
@@ -244,6 +244,16 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   app.get('/api/v1/product-sheet', { preHandler: requireKey, ...limited(rl) }, sheetHandler);
 
   app.get('/api/search', limited(rl), searchHandler);
+  // Aperçu d'un produit : prix relus chez les marchands si le relevé a plus de SCRAPE_REFRESH_MINUTES.
+  const refreshMs = (Number.parseInt(process.env.SCRAPE_REFRESH_MINUTES ?? '', 10) || 15) * 60_000;
+  app.get('/api/refresh', limited(rl), async (req) => {
+    const query = req.query as Record<string, unknown>;
+    const key = String(query.key ?? '');
+    const title = String(query.title ?? '');
+    if (!key || key.length > 400 || title.length > 400) throw new BadRequest('« key » (et « title ») requis, 400 caractères max.');
+    const params = parseSearchParams({ q: query.q, category: query.category });
+    return { group: await engine.refreshGroup(params, key, title, refreshMs), refreshedAt: new Date().toISOString() };
+  });
   // Lots jusqu'à 50 articles : quota plus strict que la recherche.
   app.post('/api/lookup', limited(rl / 3), lookupHandler);
 

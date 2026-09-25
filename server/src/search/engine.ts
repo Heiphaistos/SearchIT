@@ -25,6 +25,8 @@ import type { HistoryStore } from './history.js';
 import { round2 } from './offer.js';
 import { unitPriceFor } from './unit-price.js';
 import { MIN_RELEVANCE, extractConditionIntent, prepareQuery, relevance } from './relevance.js';
+import { detectModel } from './models.js';
+import { valueScore } from './performance.js';
 
 const DEFAULT_LOOKUP_CONDITIONS: Condition[] = ['new', 'refurbished'];
 // Écart de pertinence toléré entre produits jugés équivalents pour une recherche de prix.
@@ -80,7 +82,8 @@ export class SearchEngine {
     this.cache.clear();
   }
 
-  private async fetchAll(query: ConnectorQuery, merchants?: string[]): Promise<FetchResult> {
+  /** `fresh` : les sources en direct (pages de recherche des marchands) ignorent le cache du moteur. */
+  private async fetchAll(query: ConnectorQuery, merchants?: string[], fresh = false): Promise<FetchResult> {
     // Les sources multi-marchands (démo, Google Shopping) sont toujours interrogées ;
     // le filtre marchand s'applique ensuite offre par offre.
     const connectors = this.activeConnectors().filter((c) => c.aggregator || c.merchantId === 'demo' || !merchants?.length || merchants.includes(c.merchantId));
@@ -89,7 +92,7 @@ export class SearchEngine {
       connectors.map(async (connector): Promise<Offer[]> => {
         const started = Date.now();
         const cacheKey = `${connector.id}|${normalizeText(query.q)}|${query.gtin ?? ''}|${query.category ?? ''}|${(query.conditions ?? []).join(',')}|${query.minPrice ?? ''}|${query.maxPrice ?? ''}`;
-        const cached = this.cache.get(cacheKey);
+        const cached = fresh && connector.live ? undefined : this.cache.get(cacheKey);
         if (cached) {
           sources.push({ merchantId: connector.merchantId, connector: connector.id, status: 'ok', count: cached.length, ms: 0 });
           return cached;
@@ -136,21 +139,28 @@ export class SearchEngine {
     return { offers: [...seen.values()], sources };
   }
 
-  async search(params: SearchParams, opts: { track?: boolean } = {}): Promise<SearchResponse> {
+  /**
+   * `fresh` (aperçu « temps réel ») : les pages de recherche des marchands sont relues si leur
+   * cache a plus de `maxAgeMs` ; les autres sources restent servies depuis leur cache.
+   */
+  async search(params: SearchParams, opts: { track?: boolean; maxAgeMs?: number } = {}): Promise<SearchResponse> {
     const started = Date.now();
     // Sans mots-clés mais avec une catégorie : navigation dans la catégorie.
     const browse = !params.q.trim() && Boolean(params.category);
     const intent = extractConditionIntent(params.q);
-    const q = browse ? (getCategory(params.category!).keywords[0] ?? getCategory(params.category!).label) : intent.query;
+    // « 5090 », « 9800x3d » : modèle de puce reconnu, requête enrichie et catégorie imposée.
+    const model = browse ? null : detectModel(intent.query);
+    const q = browse ? (getCategory(params.category!).keywords[0] ?? getCategory(params.category!).label) : (model?.match ?? intent.query);
     const conditions = params.conditions?.length ? params.conditions : intent.conditions.length ? intent.conditions : undefined;
     if (opts.track !== false) this.counters.searches++;
-    let detectedCategory = params.category ?? detectCategory(params.q);
+    let detectedCategory = params.category ?? model?.category ?? detectCategory(params.q);
     const page = Math.max(1, params.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 24));
 
     const { offers, sources } = await this.fetchAll(
-      { q, category: detectedCategory, conditions, minPrice: params.minPrice, maxPrice: params.maxPrice, limit: 60, browse },
+      { q, category: detectedCategory, conditions, minPrice: params.minPrice, maxPrice: params.maxPrice, limit: 60, browse, searchText: model?.searchText, maxAgeMs: opts.maxAgeMs },
       params.merchants,
+      opts.maxAgeMs !== undefined,
     );
 
     // 1) Pertinence. La catégorie détectée donne un léger bonus ; sans mot-clé de
@@ -162,6 +172,8 @@ export class SearchEngine {
         if (offer.category === params.category) scored.push({ offer, relevance: 1 });
         continue;
       }
+      // Modèle de puce : les PC, portables ou accessoires qui le citent ne sont pas le produit cherché.
+      if (model && !params.category && offer.category !== model.category && offer.category !== 'other') continue;
       const score = relevance(prepared, offer.title, `${offer.brand ?? ''} ${offer.mpn ?? ''} ${categoryTerms(offer.category)}`);
       if (score >= MIN_RELEVANCE) scored.push({ offer, relevance: score });
     }
@@ -197,6 +209,7 @@ export class SearchEngine {
       g.unitPrice = unitPriceFor(g.category, g.title, g.bestOffer.totalPrice);
       g.history = history?.summary(g.key);
       g.reference = this.options.catalog?.reference(g.title, g.category);
+      g.value = valueScore(g);
     }
     const groups = sortGroups(grouped, params.sort ?? 'relevance');
     return {
@@ -211,6 +224,16 @@ export class SearchEngine {
       demo: this.isDemo(),
       tookMs: Date.now() - started,
     };
+  }
+
+  /**
+   * Aperçu « temps réel » d'un produit : relance la recherche d'origine en relisant les pages
+   * de recherche des marchands plus vieilles que `maxAgeMs`, puis renvoie le même produit.
+   */
+  async refreshGroup(params: SearchParams, key: string, title: string, maxAgeMs: number): Promise<ProductGroup | null> {
+    const res = await this.search({ ...params, page: 1, pageSize: 100 }, { track: false, maxAgeMs });
+    const wanted = normalizeText(title);
+    return res.groups.find((g) => g.key === key) ?? res.groups.find((g) => normalizeText(g.title) === wanted) ?? null;
   }
 
   /** Autocomplétion : recherches populaires, titres de produits connus et catégories. */
@@ -352,6 +375,9 @@ function sortGroups(groups: ProductGroup[], sort: NonNullable<SearchParams['sort
       return groups.sort((a, b) => b.savingsPercent - a.savingsPercent || byPrice(a, b));
     case 'offers':
       return groups.sort((a, b) => b.offers.length - a.offers.length || byPrice(a, b));
+    case 'value':
+      // Produits sans indice fiable en fin de liste, du moins cher au plus cher.
+      return groups.sort((a, b) => (b.value?.score ?? -1) - (a.value?.score ?? -1) || byPrice(a, b));
     case 'unit-price':
       // Produits sans prix unitaire (capacité inconnue) en fin de liste.
       return groups.sort((a, b) => (a.unitPrice?.value ?? Infinity) - (b.unitPrice?.value ?? Infinity) || byPrice(a, b));

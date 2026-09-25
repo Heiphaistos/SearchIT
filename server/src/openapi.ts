@@ -110,7 +110,7 @@ export const openApiSpec = {
           { name: 'maxPrice', in: 'query', schema: { type: 'number' } },
           { name: 'inStock', in: 'query', schema: { type: 'boolean' } },
           { name: 'hideAccessories', in: 'query', schema: { type: 'boolean', default: true } },
-          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['relevance', 'price-asc', 'price-desc', 'savings', 'offers', 'unit-price'] } },
+          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['relevance', 'price-asc', 'price-desc', 'savings', 'offers', 'unit-price', 'value'] } },
           { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
           { name: 'pageSize', in: 'query', schema: { type: 'integer', default: 24, maximum: 100 } },
         ],
