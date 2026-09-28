@@ -11,7 +11,7 @@ export const CATEGORIES: Category[] = [
   { id: 'nas', label: 'NAS', group: 'infrastructure', keywords: ['nas', 'synology', 'qnap', 'diskstation', 'terramaster', 'asustor', 'ugreen nas', 'truenas'] },
   { id: 'server', label: 'Serveurs', group: 'infrastructure', keywords: ['serveur', 'server', 'poweredge', 'proliant', 'thinksystem', 'rack 1u', 'rack 2u', 'xeon', 'epyc', 'supermicro', 'primergy'] },
   { id: 'ups', label: 'Onduleurs', group: 'infrastructure', keywords: ['onduleur', 'ups', 'back-ups', 'smart-ups', 'eaton'] },
-  { id: 'network', label: 'Réseau', group: 'infrastructure', keywords: ['routeur', 'router', 'switch', 'point d acces', 'access point', 'wifi 7', 'wifi 6', 'mesh', 'carte reseau', 'ubiquiti', 'unifi', 'mikrotik', 'cpl', 'modem', 'sfp'] },
+  { id: 'network', label: 'Réseau', group: 'infrastructure', keywords: ['routeur', 'router', 'switch', 'point d acces', 'access point', 'wifi 7', 'wifi 6', 'mesh', 'carte reseau', 'carte wifi', 'carte wi-fi', 'module wifi', 'module wi-fi', 'cle wi-fi', 'cle wifi', 'wifi usb', 'antenne wifi', 'antenne wi-fi', 'antenne', 'ax210', 'ax200', 'be200', 'ubiquiti', 'unifi', 'mikrotik', 'cpl', 'modem', 'sfp'] },
   { id: 'cpu', label: 'Processeurs', group: 'components', keywords: ['processeur', 'cpu', 'ryzen', 'core i3', 'core i5', 'core i7', 'core i9', 'core ultra', 'threadripper', 'pentium', 'celeron'] },
   { id: 'gpu', label: 'Cartes graphiques', group: 'components', keywords: ['carte graphique', 'gpu', 'geforce', 'rtx', 'gtx', 'radeon', 'rx 7', 'rx 9', 'arc b', 'arc a', 'quadro'] },
   { id: 'motherboard', label: 'Cartes mères', group: 'components', keywords: ['carte mere', 'motherboard', 'am5', 'am4', 'lga1700', 'lga1851', 'b650', 'b850', 'x870', 'x670', 'z790', 'z890', 'b760', 'b860'] },

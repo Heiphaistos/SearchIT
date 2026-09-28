@@ -99,6 +99,13 @@ export class HistoryStore {
     if (changed) this.scheduleSave();
   }
 
+  /** Titres et images des produits relevés (offres réelles), pour illustrer le catalogue. */
+  images(): Array<{ title: string; image: string }> {
+    const out: Array<{ title: string; image: string }> = [];
+    for (const m of this.meta.values()) if (m.i && /^https:\/\//.test(m.i)) out.push({ title: m.t, image: m.i });
+    return out;
+  }
+
   /**
    * Compte une recherche ayant donné des résultats (pour l'autocomplétion « populaire »). Le texte
    * vient des visiteurs : il n'est proposé aux autres qu'une fois fait depuis MIN_DISTINCT_IPS IP

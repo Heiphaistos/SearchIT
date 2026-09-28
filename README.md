@@ -13,7 +13,7 @@ Production : **https://searchit.heiphaistos.org**
 - Filtres par état, catégorie, marchand, prix et stock. Les accessoires (coques, câbles…) sont masqués quand on cherche un appareil.
 - Navigation par catégorie (35 catégories, des processeurs aux onduleurs).
 - **Ma liste** : un panier de comparaison (par exemple tous les composants d'un PC). Il calcule le total optimal en achetant chez plusieurs marchands, et le total si tout est acheté chez un seul marchand.
-- **Catalogue de référence** (7 972 produits réels, 32 catégories, 188 marques) : caractéristiques techniques, génération et prix de lancement indicatif. Il alimente la page « Catalogue », la fiche technique immédiate des résultats, le comparateur, l'autocomplétion et le mode démo. Données dans `server/src/catalog/data/*.ts` ; API `/api/v1/catalog`.
+- **Catalogue de référence** (8 013 produits réels, 32 catégories, 191 marques, dont cartes Wi-Fi PCIe, modules M.2, adaptateurs USB et antennes) : caractéristiques techniques, génération et prix de lancement indicatif. Il alimente la page « Catalogue », la fiche technique immédiate des résultats, le comparateur, l'autocomplétion et le mode démo. Données dans `server/src/catalog/data/*.ts` ; API `/api/v1/catalog`.
 - **Suivis de prix** : prix cible par produit, revérification automatique et notification du navigateur quand la cible est atteinte (page « Suivis »).
 - **Bons plans** : les plus fortes baisses par rapport à la moyenne des 30 derniers jours, calculées uniquement sur des prix réellement relevés.
 - **Comparateur** : jusqu'à 4 produits côte à côte (prix neuf, reconditionné, occasion, prix au To, caractéristiques Icecat).
@@ -29,7 +29,9 @@ Production : **https://searchit.heiphaistos.org**
 - **Sécurité** : limite de débit par IP (protège aussi les crédits Google Shopping), en-têtes CSP et HSTS, validation de toutes les entrées.
 - **Référencement et appli installable** : `sitemap.xml`, `robots.txt`, balises Open Graph, manifeste, recherche OpenSearch dans la barre d'adresse.
 - **API publique `/api/v1`**, prévue pour le configurateur de PC (voir plus bas).
-- Interface moderne en français, thème clair/sombre, adaptée au mobile.
+- **Photos du catalogue** : image d'une offre réelle déjà relevée pour ce modèle, sinon vignette Wikipédia (seulement si l'article nomme le modèle exact). Cache disque 30 jours, 300 recherches Wikipédia par heure au plus. API `/api/catalog/:id/image` (redirection, ou JSON avec `?format=json`).
+- **Bot Discord HeiphaisBot** (page `/discord`) : `/pc price`, `/pc offers`, `/pc specs`, `/pc compare`, `/pc deals`, `/pc build` (configuration EnginePC), `/pc watch` (alertes de prix) et bons plans publiés automatiquement. Le bot utilise l'API `/api/v1` avec une des clés `API_KEYS`. `VITE_DISCORD_INVITE_URL` (au build) affiche un bouton d'invitation.
+- Interface moderne en français, thème clair/sombre et 7 couleurs d'accent (bouton palette de l'en-tête), adaptée au mobile.
 
 ## Sources gratuites
 

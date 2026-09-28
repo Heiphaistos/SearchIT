@@ -7,6 +7,7 @@ import { CatalogProductPage } from './pages/CatalogProductPage';
 import { ComparePage } from './pages/ComparePage';
 import { DealsPage } from './pages/DealsPage';
 import { DevelopersPage } from './pages/DevelopersPage';
+import { DiscordPage } from './pages/DiscordPage';
 import { HomePage } from './pages/HomePage';
 import { ConfigurationPage } from './pages/ConfigurationPage';
 import { ListPage } from './pages/ListPage';
@@ -24,6 +25,7 @@ const router = createBrowserRouter([
       { path: '/configuration', element: <ConfigurationPage /> },
       { path: '/sources', element: <SourcesPage /> },
       { path: '/developpeurs', element: <DevelopersPage /> },
+      { path: '/discord', element: <DiscordPage /> },
       { path: '/bons-plans', element: <DealsPage /> },
       { path: '/catalogue', element: <CatalogPage /> },
       { path: '/catalogue/:id', element: <CatalogProductPage /> },

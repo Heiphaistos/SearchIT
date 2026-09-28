@@ -22,6 +22,14 @@ interface Indexed {
   textTokens: string[];
 }
 
+/** Mots indexés pour la recherche du catalogue : marque, nom, gamme et type (« Carte Wi-Fi PCIe », « Antenne Wi-Fi »). */
+function catalogTextTokens(product: CatalogProduct): string[] {
+  const type = typeof product.specs['Type'] === 'string' ? product.specs['Type'] : '';
+  const tokens = new Set(tokenize(`${product.brand} ${product.name} ${product.family ?? ''} ${type}`));
+  if (tokens.has('wi-fi')) tokens.add('wifi'); // « wifi » et « wi-fi » s'écrivent indifféremment
+  return [...tokens];
+}
+
 export class Catalog {
   readonly products: CatalogProduct[];
   private byId = new Map<string, CatalogProduct>();
@@ -42,7 +50,7 @@ export class Catalog {
     for (const p of this.products) this.byId.set(p.id, p);
     this.indexed = this.products.map((product) => {
       const tokens = [...new Set(tokenize(product.name))];
-      return { product, tokens, tokenSet: new Set(tokens), textTokens: [...new Set(tokenize(`${product.brand} ${product.name} ${product.family ?? ''}`))] };
+      return { product, tokens, tokenSet: new Set(tokens), textTokens: catalogTextTokens(product) };
     });
   }
 
