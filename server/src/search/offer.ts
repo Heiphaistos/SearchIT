@@ -39,8 +39,8 @@ export function makeOffer(input: OfferInput): Offer {
     merchantId: input.merchantId,
     merchantName: input.merchantName,
     title,
-    url: input.url,
-    imageUrl: input.imageUrl || undefined,
+    url: safeUrl(input.url),
+    imageUrl: safeUrl(input.imageUrl) || undefined,
     price: round2(input.price),
     currency: input.currency ?? 'EUR',
     shipping: shipping === null ? null : round2(shipping),
@@ -59,6 +59,17 @@ export function makeOffer(input: OfferInput): Offer {
     via: input.via,
     updatedAt: input.updatedAt ?? new Date().toISOString(),
   };
+}
+
+/** Liens venus de sites, flux ou API tiers : http(s) seulement (pas de javascript:, data:…). */
+export function safeUrl(url: string | undefined): string {
+  if (!url) return '';
+  try {
+    const { protocol } = new URL(url);
+    return protocol === 'http:' || protocol === 'https:' ? url : '';
+  } catch {
+    return '';
+  }
 }
 
 export function round2(n: number): number {

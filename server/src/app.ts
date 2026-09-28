@@ -227,7 +227,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     };
   });
 
-  const searchHandler = async (req: FastifyRequest) => engine.search(parseSearchParams(req.query as Record<string, unknown>));
+  const searchHandler = async (req: FastifyRequest) => engine.search(parseSearchParams(req.query as Record<string, unknown>), { ip: req.ip });
   const lookupHandler = async (req: FastifyRequest) => engine.lookup(parseLookupRequest(req.body));
 
   // Fiche technique (Open Icecat) par EAN ou marque + référence fabricant.

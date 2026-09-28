@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { CategoryId, Deal, PriceHistory, PricePoint, ProductGroup } from '../shared/types.js';
@@ -11,6 +12,8 @@ const MAX_DAYS = 365;
 const MAX_PRODUCTS = 50_000;
 const MAX_QUERIES = 5_000;
 const SPARKLINE_DAYS = 90;
+/** Une recherche n'est proposée à tous (autocomplétion, sitemap) qu'après N visiteurs distincts. */
+export const MIN_DISTINCT_IPS = 3;
 
 /** Métadonnées minimales d'un produit suivi (pour la page « Bons plans »). */
 export interface ProductMeta {
@@ -20,10 +23,18 @@ export interface ProductMeta {
   q?: string;
 }
 
+interface QueryEntry {
+  q: string;
+  count: number;
+  last: number;
+  /** Empreintes courtes des IP qui l'ont faite, au plus MIN_DISTINCT_IPS. */
+  ips?: string[];
+}
+
 interface Data {
   products: Record<string, PricePoint[]>;
   meta?: Record<string, ProductMeta>;
-  queries: Record<string, { q: string; count: number; last: number }>;
+  queries: Record<string, QueryEntry>;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -37,7 +48,7 @@ function minDefined(a: number | undefined, b: number | undefined): number | unde
 export class HistoryStore {
   private products = new Map<string, PricePoint[]>();
   private meta = new Map<string, ProductMeta>();
-  private queries = new Map<string, { q: string; count: number; last: number }>();
+  private queries = new Map<string, QueryEntry>();
   private timer: NodeJS.Timeout | null = null;
 
   constructor(private file: string | null) {
@@ -88,13 +99,22 @@ export class HistoryStore {
     if (changed) this.scheduleSave();
   }
 
-  /** Compte une recherche ayant donné des résultats (pour l'autocomplétion « populaire »). */
-  recordQuery(q: string): void {
+  /**
+   * Compte une recherche ayant donné des résultats (pour l'autocomplétion « populaire »). Le texte
+   * vient des visiteurs : il n'est proposé aux autres qu'une fois fait depuis MIN_DISTINCT_IPS IP
+   * distinctes, sinon n'importe qui injecterait du texte dans l'autocomplétion et le sitemap public.
+   */
+  recordQuery(q: string, ip?: string): void {
     const key = normalizeText(q);
     if (key.length < 2 || key.length > 60) return;
     const entry = this.queries.get(key) ?? { q: q.trim(), count: 0, last: 0 };
     entry.count++;
     entry.last = Date.now();
+    if (ip) {
+      const id = createHash('sha256').update(ip).digest('hex').slice(0, 12);
+      entry.ips ??= [];
+      if (entry.ips.length < MIN_DISTINCT_IPS && !entry.ips.includes(id)) entry.ips.push(id);
+    }
     this.queries.set(key, entry);
     if (this.queries.size > MAX_QUERIES) {
       const weakest = [...this.queries.entries()].sort((a, b) => a[1].count - b[1].count || a[1].last - b[1].last)[0];
@@ -106,7 +126,7 @@ export class HistoryStore {
   popularQueries(prefix: string, limit: number): string[] {
     const p = normalizeText(prefix);
     return [...this.queries.entries()]
-      .filter(([k]) => !p || k.startsWith(p) || k.includes(` ${p}`))
+      .filter(([k, v]) => (v.ips?.length ?? 0) >= MIN_DISTINCT_IPS && (!p || k.startsWith(p) || k.includes(` ${p}`)))
       .sort((a, b) => b[1].count - a[1].count || b[1].last - a[1].last)
       .slice(0, limit)
       .map(([, v]) => v.q);

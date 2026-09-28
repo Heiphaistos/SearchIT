@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { alternate, cybertek, topachat } from '../src/connectors/scrape/extractors.js';
-import { resetDomains, SCRAPE_USER_AGENT } from '../src/connectors/scrape/fetcher.js';
+import { MAX_QUEUE, politeFetch, resetDomains, SCRAPE_USER_AGENT } from '../src/connectors/scrape/fetcher.js';
 import { createScrapeConnector } from '../src/connectors/scrape/index.js';
 import { isAllowed, parseRobots } from '../src/connectors/scrape/robots.js';
 import type { MerchantDefinition } from '../src/merchants.js';
@@ -128,6 +128,35 @@ describe('connecteur de page de recherche', () => {
     expect(Date.parse(state.pausedUntil!)).toBeGreaterThan(Date.now() + 25 * 60_000);
     expect(await c.search({ ...q, q: 'autre' }, AbortSignal.timeout(10_000))).toEqual([]);
     expect(calls).toHaveLength(2);
+  }, 15_000);
+
+  it('une requête annulée quitte la file sans consommer le créneau de 2 s', async () => {
+    mockFetch(() => new Response('ok'));
+    await politeFetch('https://f.test/a', AbortSignal.timeout(10_000));
+    const t0 = calls[1].at;
+    const ctl = new AbortController();
+    const cancelled = politeFetch('https://f.test/b', ctl.signal);
+    setTimeout(() => ctl.abort(), 100);
+    const started = Date.now();
+    await expect(cancelled).rejects.toThrow();
+    expect(Date.now() - started).toBeLessThan(1_000);
+    await politeFetch('https://f.test/c', AbortSignal.timeout(10_000));
+    expect(calls.map((x) => x.url)).toEqual(['https://f.test/robots.txt', 'https://f.test/a', 'https://f.test/c']);
+    expect(calls[2].at - t0).toBeLessThan(3_000);
+  }, 15_000);
+
+  it('refuse au-delà de MAX_QUEUE requêtes en attente sur un domaine', async () => {
+    mockFetch(() => new Response('ok'));
+    await politeFetch('https://g.test/0', AbortSignal.timeout(10_000));
+    const ctl = new AbortController();
+    const all = Array.from({ length: MAX_QUEUE + 3 }, (_, i) => politeFetch(`https://g.test/${i + 1}`, ctl.signal));
+    const full = await Promise.race(all.map((p) => p.then(() => null, (e: Error) => e.message)));
+    expect(full).toMatch(/File de collecte pleine/);
+    ctl.abort();
+    const results = await Promise.allSettled(all);
+    expect(results.filter((r) => r.status === 'rejected')).toHaveLength(MAX_QUEUE + 3);
+    // Tout annulé : la file s'est vidée, un nouvel appel passe.
+    await expect(politeFetch('https://g.test/z', AbortSignal.timeout(10_000))).resolves.toMatchObject({ html: 'ok' });
   }, 15_000);
 
   it('reste éteint quand la source est écartée ou la collecte désactivée', () => {

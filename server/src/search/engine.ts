@@ -143,7 +143,7 @@ export class SearchEngine {
    * `fresh` (aperçu « temps réel ») : les pages de recherche des marchands sont relues si leur
    * cache a plus de `maxAgeMs` ; les autres sources restent servies depuis leur cache.
    */
-  async search(params: SearchParams, opts: { track?: boolean; maxAgeMs?: number } = {}): Promise<SearchResponse> {
+  async search(params: SearchParams, opts: { track?: boolean; maxAgeMs?: number; ip?: string } = {}): Promise<SearchResponse> {
     const started = Date.now();
     // Sans mots-clés mais avec une catégorie : navigation dans la catégorie.
     const browse = !params.q.trim() && Boolean(params.category);
@@ -203,7 +203,7 @@ export class SearchEngine {
     if (history) {
       // Les recherches ciblées enrichissent l'historique ; la navigation par catégorie aussi.
       history.record(grouped);
-      if (!browse && grouped.length && opts.track !== false) history.recordQuery(params.q);
+      if (!browse && grouped.length && opts.track !== false) history.recordQuery(params.q, opts.ip);
     }
     for (const g of grouped) {
       g.unitPrice = unitPriceFor(g.category, g.title, g.bestOffer.totalPrice);

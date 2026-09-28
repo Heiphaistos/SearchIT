@@ -48,11 +48,21 @@ describe('historique des prix', () => {
 
   it('classe les recherches populaires', () => {
     const h = new HistoryStore(null);
-    for (let i = 0; i < 3; i++) h.recordQuery('RTX 5070');
-    h.recordQuery('rtx 5080');
-    h.recordQuery('iPhone 15');
+    for (let i = 0; i < 4; i++) h.recordQuery('RTX 5070', `10.0.0.${i}`);
+    for (let i = 0; i < 3; i++) h.recordQuery('rtx 5080', `10.0.1.${i}`);
+    for (let i = 0; i < 3; i++) h.recordQuery('iPhone 15', `10.0.2.${i}`);
     expect(h.popularQueries('rtx', 5)).toEqual(['RTX 5070', 'rtx 5080']);
     expect(h.popularQueries('', 1)).toEqual(['RTX 5070']);
+  });
+
+  it('ne propose pas une recherche faite depuis une seule IP (empoisonnement)', () => {
+    const h = new HistoryStore(null);
+    for (let i = 0; i < 50; i++) h.recordQuery('achetez chez arnaque point com', '203.0.113.9');
+    h.recordQuery('rtx 5070', '10.0.0.1');
+    h.recordQuery('rtx 5070', '10.0.0.2');
+    expect(h.popularQueries('', 10)).toEqual([]);
+    h.recordQuery('rtx 5070', '10.0.0.3');
+    expect(h.popularQueries('', 10)).toEqual(['rtx 5070']);
   });
 });
 
@@ -114,8 +124,11 @@ describe('historique branché sur la recherche', () => {
     expect(g.unitPrice).toEqual({ value: 24.99, unit: '€/To' });
     const hist = (await app.inject({ url: `/api/history/${encodeURIComponent(g.key)}` })).json();
     expect(hist.points).toHaveLength(1);
-    const suggest = (await app.inject({ url: '/api/suggest?q=iron' })).json<SuggestResponse>();
-    expect(suggest.queries[0]).toBe('ironwolf 8 to');
+    // Proposée aux autres visiteurs seulement une fois cherchée depuis 3 IP distinctes.
+    const suggest = async () => (await app.inject({ url: '/api/suggest?q=iron' })).json<SuggestResponse>().queries;
+    expect(await suggest()).not.toContain('ironwolf 8 to');
+    for (const ip of ['192.0.2.2', '192.0.2.3']) await app.inject({ url: '/api/search?q=ironwolf%208%20to', remoteAddress: ip });
+    expect((await suggest())[0]).toBe('ironwolf 8 to');
   });
 });
 
@@ -132,5 +145,15 @@ describe('limite de débit', () => {
       config.rateLimitPerMinute = previous;
       await app.close();
     }
+  });
+});
+
+describe('liens des offres', () => {
+  it('ne garde que les liens http(s)', () => {
+    const o = (url: string, imageUrl?: string) => makeOffer({ merchantId: 'm', merchantName: 'M', title: 'X', url, imageUrl, price: 1 });
+    expect(o('javascript:alert(1)').url).toBe('');
+    expect(o('data:text/html,<script>x</script>').url).toBe('');
+    expect(o('https://shop.test/p/1', 'javascript:x').imageUrl).toBeUndefined();
+    expect(o('https://shop.test/p/1', 'https://cdn.test/i.jpg')).toMatchObject({ url: 'https://shop.test/p/1', imageUrl: 'https://cdn.test/i.jpg' });
   });
 });

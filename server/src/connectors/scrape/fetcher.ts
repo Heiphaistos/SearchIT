@@ -1,4 +1,5 @@
 import type { ScrapeState } from '../../shared/types.js';
+import { setTimeout as delay } from 'node:timers/promises';
 import { isAllowed, parseRobots, type RobotsRule } from './robots.js';
 
 // Lecture polie des pages de recherche publiques des marchands :
@@ -7,12 +8,14 @@ import { isAllowed, parseRobots, type RobotsRule } from './robots.js';
 //  - une seule requête à la fois par domaine, au moins 2 s entre deux requêtes, 8 s maximum ;
 //  - aucun contournement : un 403/429 ou une page de défi met le domaine en pause (backoff).
 
-export const SCRAPE_USER_AGENT = 'SearchIT/1.2 (+https://searchit.heiphaistos.org; comparateur de prix)';
+export const SCRAPE_USER_AGENT = 'SearchIT/1.3 (+https://searchit.heiphaistos.org; comparateur de prix)';
 const MIN_GAP_MS = 2_000;
 const TIMEOUT_MS = 8_000;
 const ROBOTS_TTL_MS = 24 * 3_600_000;
 const BASE_PAUSE_MS = 30 * 60_000;
 const MAX_PAUSE_MS = 24 * 3_600_000;
+/** Requêtes en attente par domaine au-delà desquelles on refuse (à 2 s l'une, 10 = 20 s). */
+export const MAX_QUEUE = 10;
 
 // Pages de défi anti-robot connues (Cloudflare, DataDome, Akamai, PerimeterX, captchas).
 const CHALLENGE = /cf-chl|challenge-platform|just a moment|datadome|captcha-delivery|px-captcha|_incapsula_|g-recaptcha|hcaptcha/i;
@@ -30,16 +33,17 @@ interface Domain {
   robots?: { rules: RobotsRule[]; at: number; blocked?: string };
   pausedUntil: number;
   failures: number;
+  /** Requêtes en file ou en cours. */
+  pending: number;
   state?: ScrapeState;
 }
 
 const domains = new Map<string, Domain>();
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function domainOf(origin: string): Domain {
   let d = domains.get(origin);
   if (!d) {
-    d = { chain: Promise.resolve(), lastAt: 0, pausedUntil: 0, failures: 0 };
+    d = { chain: Promise.resolve(), lastAt: 0, pausedUntil: 0, failures: 0, pending: 0 };
     domains.set(origin, d);
   }
   return d;
@@ -66,18 +70,25 @@ function pause(d: Domain, detail: string): ScrapeRefused {
   return new ScrapeRefused(d.state);
 }
 
-/** Requête sérialisée par domaine, espacée d'au moins 2 s. */
-function queued<T>(d: Domain, task: () => Promise<T>): Promise<T> {
+/**
+ * Requête sérialisée par domaine, espacée d'au moins 2 s. File plafonnée à MAX_QUEUE : au-delà,
+ * refus immédiat plutôt que des minutes d'attente pour toutes les recherches. Une requête annulée
+ * (délai du moteur) quitte la file sans dormir ni consommer le créneau de 2 s.
+ */
+function queued<T>(d: Domain, task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (d.pending >= MAX_QUEUE) return Promise.reject(new Error('File de collecte pleine pour ce marchand'));
+  d.pending += 1;
   const run = d.chain.then(async () => {
+    signal?.throwIfAborted();
     const wait = d.lastAt + MIN_GAP_MS - Date.now();
-    if (wait > 0) await sleep(wait);
+    if (wait > 0) await delay(wait, undefined, { signal });
     try {
       return await task();
     } finally {
       d.lastAt = Date.now();
     }
   });
-  d.chain = run.catch(() => undefined);
+  d.chain = run.catch(() => undefined).finally(() => (d.pending -= 1));
   return run;
 }
 
@@ -94,7 +105,7 @@ async function robotsFor(d: Domain, origin: string, signal?: AbortSignal): Promi
     if (d.robots.blocked) throw pause(d, d.robots.blocked);
     return d.robots.rules;
   }
-  const res = await queued(d, () => get(`${origin}/robots.txt`, signal));
+  const res = await queued(d, () => get(`${origin}/robots.txt`, signal), signal);
   // RFC 9309 : 4xx = pas de restriction ; 5xx = tout interdit. Un 401/403/429 est ici l'anti-robot lui-même.
   if ([401, 403, 429].includes(res.status)) {
     d.robots = { rules: [], at: Date.now(), blocked: `HTTP ${res.status} dès robots.txt : protection anti-robot` };
@@ -119,7 +130,7 @@ export async function politeFetch(url: string, signal?: AbortSignal): Promise<{ 
   if (d.pausedUntil > Date.now()) throw new ScrapeRefused(d.state!);
   const rules = await robotsFor(d, target.origin, signal);
   checkRobots(d, rules, target);
-  const res = await queued(d, () => get(url, signal));
+  const res = await queued(d, () => get(url, signal), signal);
   const html = await res.text();
   if ([403, 429, 503].includes(res.status) || CHALLENGE.test(html.slice(0, 20_000))) {
     throw pause(d, res.ok ? 'Page de défi anti-robot' : `HTTP ${res.status} : protection anti-robot ou limite de débit`);
