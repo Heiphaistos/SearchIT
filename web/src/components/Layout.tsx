@@ -1,10 +1,10 @@
-import { Bell, Database, Flame, ListChecks, Menu, Moon, Scale, Search, Sun, X } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { Bell, Check, Database, Flame, ListChecks, Menu, Moon, Palette, Scale, Search, Sun, X } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { clearCompare, compareStore } from '../lib/compare';
 import { listStore } from '../lib/list';
-import { themeStore, toggleTheme } from '../lib/theme';
+import { ACCENTS, accentStore, setAccent, themeStore, toggleTheme } from '../lib/theme';
 import { scheduleWatchCheck, watchStore } from '../lib/watch';
 import { SearchBar } from './SearchBar';
 import { DemoBanner } from './ui';
@@ -73,6 +73,52 @@ function FooterColumn({ title, links }: { title: string; links: Array<[string, s
   );
 }
 
+/** Choix de la couleur d'accent (mémorisée dans le navigateur). */
+function AccentPicker() {
+  const accent = accentStore.use();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen((o) => !o)} className="btn-ghost size-9 p-0" aria-label="Couleur d’accent" aria-expanded={open}>
+        <Palette className="size-4" />
+      </button>
+      {open && (
+        <div className="animate-fade-in absolute right-0 top-11 z-40 w-56 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-slate-900">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Couleur d’accent</p>
+          <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Couleur d’accent">
+            {ACCENTS.map((a) => (
+              <button
+                key={a.id}
+                role="radio"
+                aria-checked={accent === a.id}
+                title={a.label}
+                onClick={() => setAccent(a.id)}
+                className={`grid size-9 place-items-center rounded-full ring-offset-2 transition hover:scale-110 dark:ring-offset-slate-900 ${accent === a.id ? 'ring-2 ring-slate-900 dark:ring-white' : ''}`}
+                style={{ background: a.color }}
+              >
+                {accent === a.id && <Check className="size-4 text-white" />}
+                <span className="sr-only">{a.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Layout() {
   const theme = themeStore.use();
   const list = listStore.use();
@@ -134,6 +180,7 @@ export function Layout() {
                 {item.badge}
               </NavLink>
             ))}
+            <AccentPicker />
             <button onClick={toggleTheme} className="btn-ghost size-9 p-0" aria-label={theme === 'dark' ? 'Passer en thème clair' : 'Passer en thème sombre'}>
               {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
             </button>
@@ -179,7 +226,7 @@ export function Layout() {
             title="Catégories"
             links={[['/recherche?category=gpu', 'Cartes graphiques'], ['/recherche?category=smartphone', 'Smartphones'], ['/recherche?category=laptop', 'PC portables'], ['/recherche?category=nas', 'NAS'], ['/recherche?category=server', 'Serveurs']]}
           />
-          <FooterColumn title="SearchIT" links={[['/sources', 'Marchands & sources'], ['/developpeurs', 'API développeurs'], ['/api/v1/openapi.json', 'Spécification OpenAPI']]} />
+          <FooterColumn title="SearchIT" links={[['/sources', 'Marchands & sources'], ['/discord', 'Bot Discord & EnginePC'], ['/developpeurs', 'API développeurs'], ['/api/v1/openapi.json', 'Spécification OpenAPI']]} />
         </div>
         <div className="border-t border-slate-200/70 dark:border-white/[0.06]">
           <p className="mx-auto max-w-7xl px-4 py-5 text-xs text-slate-500 sm:px-6 dark:text-slate-400">

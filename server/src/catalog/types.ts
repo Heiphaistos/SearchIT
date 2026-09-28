@@ -46,7 +46,7 @@ export const SPEC_KEYS: Partial<Record<CategoryId, string[]>> = {
   smartwatch: ['Écran', 'Autonomie', 'GPS', 'Étanchéité', 'Compatibilité', 'Capteurs'],
   server: ['Format', 'Processeurs', 'Sockets', 'RAM max', 'Baies disques', 'Réseau', 'Alimentation', 'Génération'],
   nas: ['Baies', 'Processeur', 'RAM', 'RAM max', 'Réseau', 'Cache M.2', 'Capacité max', 'Système'],
-  network: ['Type', 'Norme', 'Débit', 'Ports', 'PoE', 'Bandes'],
+  network: ['Type', 'Norme', 'Débit', 'Bandes', 'Interface', 'Bluetooth', 'Ports', 'PoE', 'Chipset', 'Antennes', 'Gain', 'Usage', 'Connecteur', 'Largeur de canal'],
   ups: ['Puissance', 'Puissance active', 'Topologie', 'Prises', 'Interface'],
   monitor: ['Taille', 'Dalle', 'Définition', 'Fréquence', 'Temps de réponse', 'HDR', 'Connectique'],
   console: ['Processeur', 'Stockage', 'Définition max', 'Portable'],

@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarDays, Recycle, Search, Tag } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { CatalogCard } from '../components/CatalogCard';
+import { CatalogImage } from '../components/CatalogImage';
 import { CategoryIcon } from '../components/CategoryIcon';
 import { EmptyState, SpecTable, Spinner } from '../components/ui';
 import { api } from '../lib/api';
@@ -49,9 +50,16 @@ export function CatalogProductPage() {
 
       <div className={`card mt-4 overflow-hidden bg-gradient-to-br ${style.tile}`}>
         <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:p-8">
-          <span className={`grid size-20 shrink-0 place-items-center rounded-3xl shadow-xl ${style.icon}`}>
-            <CategoryIcon category={p.category} className="size-10" />
-          </span>
+          <CatalogImage
+            id={p.id}
+            alt={p.name}
+            className="size-32 shrink-0 rounded-3xl bg-white object-contain p-2 shadow-xl sm:size-40"
+            fallback={
+              <span className={`grid size-20 shrink-0 place-items-center rounded-3xl shadow-xl ${style.icon}`}>
+                <CategoryIcon category={p.category} className="size-10" />
+              </span>
+            }
+          />
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
               {p.brand}

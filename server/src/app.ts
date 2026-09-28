@@ -15,6 +15,7 @@ import { openApiSpec } from './openapi.js';
 import { ratesInfo, refreshRates } from './search/currency.js';
 import { SearchEngine } from './search/engine.js';
 import { HistoryStore } from './search/history.js';
+import { CatalogImages } from './catalog/images.js';
 import { CATEGORIES, CATEGORY_GROUPS, isCategoryId } from './shared/categories.js';
 import type { CatalogSort, CategoryId, Condition, LookupItem, LookupRequest, SearchParams, SortKey } from './shared/types.js';
 
@@ -129,6 +130,9 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   const catalog = options.catalog ?? (await loadCatalog());
   const registry = options.registry ?? createRegistry(catalog);
   const history = new HistoryStore(options.historyFile === undefined ? config.historyFile : options.historyFile);
+  // Photos du catalogue : cache disque à côté de l'historique (désactivé avec lui, par exemple dans les tests).
+  const historyFile = options.historyFile === undefined ? config.historyFile : options.historyFile;
+  const catalogImages = new CatalogImages(historyFile ? path.join(path.dirname(historyFile), 'catalog-images.json') : null, () => history.images());
   const engine = new SearchEngine(registry.connectors, {
     history,
     catalog,
@@ -319,6 +323,18 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   };
   app.get('/api/catalog', limited(rl * 2), catalogList);
   app.get('/api/catalog/stats', async () => catalog.stats());
+  // Photo d'un produit du catalogue : redirection vers l'image (ou JSON avec ?format=json), 404 si aucune.
+  const catalogImage = async (req: FastifyRequest, reply: FastifyReply) => {
+    const product = catalog.get((req.params as { id: string }).id);
+    if (!product) return reply.status(404).send({ error: 'Produit inconnu' });
+    const img = await catalogImages.get(product);
+    if (img === undefined) return reply.status(404).header('cache-control', 'no-store').send({ error: 'Image pas encore recherchée, réessayez plus tard' });
+    if (!img) return reply.status(404).header('cache-control', 'public, max-age=86400').send({ error: 'Aucune image' });
+    if ((req.query as Record<string, string | undefined>).format === 'json') return img;
+    return reply.header('cache-control', 'public, max-age=604800').redirect(img.url, 302);
+  };
+  app.get('/api/catalog/:id/image', limited(rl * 4), catalogImage);
+  app.get('/api/v1/catalog/:id/image', { preHandler: requireKey, ...limited(rl * 4) }, catalogImage);
   app.get('/api/catalog/:id', limited(rl * 2), catalogItem);
   app.get('/api/v1/catalog', { preHandler: requireKey, ...limited(rl * 2) }, catalogList);
   app.get('/api/v1/catalog/:id', { preHandler: requireKey, ...limited(rl * 2) }, catalogItem);
@@ -357,6 +373,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
       ...catalog.products.map((p) => `/catalogue/${p.id}`),
       '/sources',
       '/developpeurs',
+      '/discord',
       ...CATEGORIES.filter((c) => c.id !== 'other').map((c) => `/recherche?category=${c.id}`),
       ...history.popularQueries('', 200).map((q) => `/recherche?q=${encodeURIComponent(q)}`),
     ];

@@ -106,6 +106,8 @@ const STRONG_ACCESSORY: Array<[string, CategoryId]> = [
   ['coque', 'accessory'], ['housse', 'accessory'], ['etui', 'accessory'], ['protection ecran', 'accessory'], ['verre trempe', 'accessory'],
   ['film protecteur', 'accessory'], ['screen protector', 'accessory'], ['phone case', 'accessory'], ['silicone case', 'accessory'],
   ['case for', 'accessory'], ['cover for', 'accessory'], ['sacoche', 'accessory'],
+  // Adaptateurs Wi-Fi USB : matériel réseau, pas des câbles.
+  ['adaptateur wifi', 'network'], ['adaptateur wi-fi', 'network'], ['adaptateur usb wi-fi', 'network'], ['adaptateur usb wifi', 'network'], ['wifi adapter', 'network'], ['wireless adapter', 'network'],
   ['cable', 'cable'], ['cordon', 'cable'], ['adaptateur', 'cable'], ['adapter', 'cable'],
   ['chargeur', 'charger'], ['charger', 'charger'], ['power bank', 'charger'], ['batterie externe', 'charger'],
   // Blocs à eau et supports « pour RTX 5090 » : ce ne sont pas des cartes graphiques.

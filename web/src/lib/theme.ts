@@ -16,3 +16,22 @@ export function toggleTheme(): void {
     return next;
   });
 }
+
+/** Couleurs d'accent : chacune remplace la palette « brand » (voir index.css). */
+export const ACCENTS = [
+  { id: 'indigo', label: 'Indigo', color: '#6366f1' },
+  { id: 'violet', label: 'Violet', color: '#8b5cf6' },
+  { id: 'blue', label: 'Bleu', color: '#3b82f6' },
+  { id: 'cyan', label: 'Cyan', color: '#06b6d4' },
+  { id: 'emerald', label: 'Émeraude', color: '#10b981' },
+  { id: 'amber', label: 'Ambre', color: '#f59e0b' },
+  { id: 'rose', label: 'Rose', color: '#f43f5e' },
+] as const;
+export type Accent = (typeof ACCENTS)[number]['id'];
+
+export const accentStore = createStore<Accent>('searchit:accent', 'indigo');
+
+export function setAccent(accent: Accent): void {
+  document.documentElement.dataset.accent = accent;
+  accentStore.set(accent);
+}

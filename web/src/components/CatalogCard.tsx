@@ -4,6 +4,7 @@ import { ArrowUpRight, Recycle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatPrice } from '../lib/format';
 import { GROUP_STYLE } from '../lib/groups';
+import { CatalogImage } from './CatalogImage';
 import { CategoryIcon } from './CategoryIcon';
 
 /** Carte d'un produit du catalogue de référence (quelques caractéristiques clés). */
@@ -14,9 +15,16 @@ export function CatalogCard({ product, compact = false }: { product: CatalogItem
   return (
     <Link to={`/catalogue/${product.id}`} className="card card-hover group flex flex-col overflow-hidden">
       <div className={`relative flex items-center gap-3 bg-gradient-to-br p-4 ${style.tile}`}>
-        <span className={`grid size-10 shrink-0 place-items-center rounded-xl shadow-md ${style.icon}`}>
-          <CategoryIcon category={product.category} className="size-5" />
-        </span>
+        <CatalogImage
+          id={product.id}
+          alt={product.name}
+          className="size-12 shrink-0 rounded-xl bg-white object-contain p-1 shadow-md"
+          fallback={
+            <span className={`grid size-10 shrink-0 place-items-center rounded-xl shadow-md ${style.icon}`}>
+              <CategoryIcon category={product.category} className="size-5" />
+            </span>
+          }
+        />
         <div className="min-w-0">
           <div className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">
             {product.brand}

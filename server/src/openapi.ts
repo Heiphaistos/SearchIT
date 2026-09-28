@@ -39,7 +39,7 @@ export const openApiSpec = {
   openapi: '3.0.3',
   info: {
     title: 'SearchIT API',
-    version: '1.3.0',
+    version: '1.4.0',
     description:
       'Comparateur de prix high-tech multi-marchands (neuf, reconditionné, occasion). ' +
       "L'endpoint /lookup permet à un configurateur de PC d'obtenir en un appel le meilleur prix de chaque composant. " +
@@ -259,6 +259,16 @@ export const openApiSpec = {
         summary: 'Fiche d’un produit du catalogue, avec produits similaires',
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         responses: { 200: { description: 'Produit, référence et produits similaires' }, 404: { description: 'Produit inconnu' } },
+      },
+    },
+    '/catalog/{id}/image': {
+      get: {
+        summary: 'Photo du produit (offre réelle relevée ou Wikipédia) : redirection 302, ou JSON { url, source, page? } avec format=json',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'format', in: 'query', schema: { type: 'string', enum: ['json'] } },
+        ],
+        responses: { 200: { description: 'Image (format=json)' }, 302: { description: 'Redirection vers l’image' }, 404: { description: 'Produit inconnu ou aucune image' } },
       },
     },
     '/product-sheet': {
