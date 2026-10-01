@@ -1,7 +1,7 @@
 import { CATEGORIES, CATEGORY_GROUPS } from '@shared/categories';
 import type { CatalogItem, CategoryGroup, CategoryId, MerchantInfo } from '@shared/types';
 import { ArrowRight, BadgePercent, Bell, Clock, CodeXml, Database, Flame, Layers, Recycle, Scale, Search, Sparkles, Store, Tag } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CatalogCard } from '../components/CatalogCard';
 import { CategoryIcon } from '../components/CategoryIcon';
@@ -26,6 +26,40 @@ const STEPS = [
   { icon: Layers, title: 'Comparez', text: 'Toutes les offres d’un même produit sont regroupées : neuf, reconditionné et occasion, frais de port inclus.' },
   { icon: Bell, title: 'Suivez', text: 'Fixez un prix cible : SearchIT surveille les prix et vous prévient quand l’affaire se présente.' },
 ];
+
+// Démonstration animée : son code (et la bibliothèque motion) n'est chargé qu'à l'approche de la section.
+const LiveSearchDemo = lazy(() => import('../components/LiveSearchDemo'));
+
+function LiveSearchSlot() {
+  const ref = useRef<HTMLElement>(null);
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[entries.length - 1].isIntersecting) {
+          setNear(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: '300px 0px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <section ref={ref} className="mx-auto max-w-7xl px-4 pt-16 sm:px-6" aria-label="Démonstration de recherche">
+      <div className="min-h-[30rem]">
+        {near && (
+          <Suspense fallback={null}>
+            <LiveSearchDemo />
+          </Suspense>
+        )}
+      </div>
+    </section>
+  );
+}
 
 function Stat({ value, label }: { value: string; label: string }) {
   return (
@@ -124,6 +158,8 @@ export function HomePage() {
           </div>
         ))}
       </section>
+
+      <LiveSearchSlot />
 
       {/* Catégories */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">

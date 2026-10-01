@@ -221,3 +221,13 @@ html[data-accent='rose'] {
     display: none;
   }
 }
+
+/* Accueil : curseur de la démonstration « recherche vivante » (1 clignotement par seconde). */
+.live-caret {
+  animation: live-caret 1s steps(2, jump-none) infinite;
+}
+@keyframes live-caret {
+  50% {
+    opacity: 0;
+  }
+}
