@@ -226,7 +226,7 @@ export function Layout() {
             title="Catégories"
             links={[['/recherche?category=gpu', 'Cartes graphiques'], ['/recherche?category=smartphone', 'Smartphones'], ['/recherche?category=laptop', 'PC portables'], ['/recherche?category=nas', 'NAS'], ['/recherche?category=server', 'Serveurs']]}
           />
-          <FooterColumn title="SearchIT" links={[['/sources', 'Marchands & sources'], ['/discord', 'Bot Discord & EnginePC'], ['/developpeurs', 'API développeurs'], ['/api/v1/openapi.json', 'Spécification OpenAPI']]} />
+          <FooterColumn title="SearchIT" links={[['/sources', 'Marchands & sources'], ['/discord', 'Bot Discord & EnginePC'], ['/developpeurs', 'API développeurs'], ['/api/v1/openapi.json', 'Spécification OpenAPI'], ['/mentions-legales', 'Mentions légales'], ['/confidentialite', 'Confidentialité'], ['/cgu', 'Conditions d’utilisation']]} />
         </div>
         <div className="border-t border-slate-200/70 dark:border-white/[0.06]">
           <p className="mx-auto max-w-7xl px-4 py-5 text-xs text-slate-500 sm:px-6 dark:text-slate-400">

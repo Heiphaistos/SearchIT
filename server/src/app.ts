@@ -374,6 +374,9 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
       '/sources',
       '/developpeurs',
       '/discord',
+      '/mentions-legales',
+      '/confidentialite',
+      '/cgu',
       ...CATEGORIES.filter((c) => c.id !== 'other').map((c) => `/recherche?category=${c.id}`),
       ...history.popularQueries('', 200).map((q) => `/recherche?q=${encodeURIComponent(q)}`),
     ];

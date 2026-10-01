@@ -11,6 +11,7 @@ import { DiscordPage } from './pages/DiscordPage';
 import { HomePage } from './pages/HomePage';
 import { ConfigurationPage } from './pages/ConfigurationPage';
 import { ListPage } from './pages/ListPage';
+import { CguPage, ConfidentialitePage, MentionsLegalesPage } from './pages/LegalPages';
 import { SearchPage } from './pages/SearchPage';
 import { SourcesPage } from './pages/SourcesPage';
 import { WatchPage } from './pages/WatchPage';
@@ -32,6 +33,9 @@ const router = createBrowserRouter([
       { path: '/suivis', element: <WatchPage /> },
       { path: '/comparer', element: <ComparePage /> },
       { path: '/admin', element: <AdminPage /> },
+      { path: '/mentions-legales', element: <MentionsLegalesPage /> },
+      { path: '/confidentialite', element: <ConfidentialitePage /> },
+      { path: '/cgu', element: <CguPage /> },
       {
         path: '*',
         element: (
