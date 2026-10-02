@@ -21,6 +21,10 @@ COPY server/src server/src
 COPY server/config server/config
 COPY --from=build /app/web/dist web/dist
 RUN mkdir -p server/.cache && chown -R node:node server/.cache
+# Le runtime lance `node` seul : npm/corepack retires avec les CVE qu'ils embarquent
+# (brace-expansion, sigstore, pacote, picomatch... scan Trivy 2026-10-01).
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 USER node
 WORKDIR /app/server
 EXPOSE 8787
